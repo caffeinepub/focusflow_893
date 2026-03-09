@@ -1,0 +1,299 @@
+import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
+import { cn } from "@/lib/utils";
+import {
+  Link,
+  Outlet,
+  RouterProvider,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  useRouterState,
+} from "@tanstack/react-router";
+import {
+  CheckSquare,
+  FolderOpen,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  Menu,
+  Timer,
+  User,
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
+import { useInternetIdentity } from "./hooks/useInternetIdentity";
+import DashboardPage from "./pages/DashboardPage";
+import FocusPage from "./pages/FocusPage";
+import ProjectsPage from "./pages/ProjectsPage";
+import TasksPage from "./pages/TasksPage";
+
+// ─── Navigation config ───────────────────────────────────────────────────────
+
+const navItems = [
+  {
+    to: "/",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    ocid: "nav.dashboard.link",
+  },
+  { to: "/tasks", label: "Tasks", icon: CheckSquare, ocid: "nav.tasks.link" },
+  {
+    to: "/projects",
+    label: "Projects",
+    icon: FolderOpen,
+    ocid: "nav.projects.link",
+  },
+  { to: "/focus", label: "Focus Timer", icon: Timer, ocid: "nav.focus.link" },
+] as const;
+
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
+
+function SidebarContent({ onClose }: { onClose?: () => void }) {
+  const { identity, login, clear, isLoggingIn } = useInternetIdentity();
+  const isAuthenticated = !!identity;
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Logo */}
+      <div className="px-6 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <Timer className="w-4 h-4 text-primary-foreground" />
+          </div>
+          <span className="font-display font-bold text-xl tracking-tight text-foreground">
+            FocusFlow
+          </span>
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground lg:hidden"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-2 space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground px-3 mb-3">
+          Navigation
+        </p>
+        {navItems.map(({ to, label, icon: Icon, ocid }) => {
+          const isActive =
+            to === "/" ? currentPath === "/" : currentPath.startsWith(to);
+          return (
+            <Link
+              key={to}
+              to={to}
+              data-ocid={ocid}
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                isActive
+                  ? "sidebar-active font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
+              )}
+            >
+              <Icon size={18} className="flex-shrink-0" />
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Footer / Auth */}
+      <div className="px-3 py-4 border-t border-border space-y-3">
+        {isAuthenticated ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 px-3 py-2">
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">
+                  {identity.getPrincipal().toString().slice(0, 10)}...
+                </p>
+                <p className="text-xs text-muted-foreground">Authenticated</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              onClick={clear}
+              data-ocid="auth.logout_button"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign out
+            </Button>
+          </div>
+        ) : (
+          <Button
+            className="w-full"
+            onClick={login}
+            disabled={isLoggingIn}
+            data-ocid="auth.login_button"
+          >
+            <LogIn className="w-4 h-4 mr-2" />
+            {isLoggingIn ? "Signing in..." : "Sign in"}
+          </Button>
+        )}
+        <div className="px-3">
+          <a
+            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors block text-center"
+          >
+            © {new Date().getFullYear()}. Built with ♥ using caffeine.ai
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Layout ───────────────────────────────────────────────────────────────────
+
+function Layout() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const routerState = useRouterState();
+
+  return (
+    <div className="flex h-screen bg-background overflow-hidden">
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex lg:flex-col w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              key="overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.aside
+              key="mobile-sidebar"
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed left-0 top-0 bottom-0 w-72 bg-sidebar border-r border-sidebar-border z-50 lg:hidden"
+            >
+              <SidebarContent onClose={() => setMobileOpen(false)} />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile header */}
+        <header className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
+              <Timer className="w-3.5 h-3.5 text-primary-foreground" />
+            </div>
+            <span className="font-display font-bold text-lg text-foreground">
+              FocusFlow
+            </span>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="flex-1 overflow-y-auto">
+          <motion.div
+            key={routerState.location.pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="h-full"
+          >
+            <Outlet />
+          </motion.div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// ─── Router setup ─────────────────────────────────────────────────────────────
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <>
+      <Layout />
+      <Toaster
+        theme="dark"
+        position="bottom-right"
+        toastOptions={{
+          classNames: {
+            toast: "bg-card border-border text-foreground",
+          },
+        }}
+      />
+    </>
+  ),
+});
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: DashboardPage,
+});
+
+const tasksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks",
+  component: TasksPage,
+});
+
+const projectsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects",
+  component: ProjectsPage,
+});
+
+const focusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/focus",
+  component: FocusPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  tasksRoute,
+  projectsRoute,
+  focusRoute,
+]);
+
+const router = createRouter({ routeTree });
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+export default function App() {
+  return <RouterProvider router={router} />;
+}
