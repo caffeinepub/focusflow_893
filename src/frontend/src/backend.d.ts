@@ -31,6 +31,16 @@ export interface DashboardSummary {
 export interface UserProfile {
     name: string;
 }
+export interface Goal {
+    id: string;
+    title: string;
+    description: string;
+    category: GoalCategory;
+    targetDate?: string;
+    status: GoalStatus;
+    progress: number;
+    notes: string;
+}
 export enum Priority {
     low = "low",
     high = "high",
@@ -40,6 +50,18 @@ export enum UserRole {
     admin = "admin",
     user = "user",
     guest = "guest"
+}
+export enum GoalStatus {
+    active = "active",
+    completed = "completed",
+    paused = "paused"
+}
+export enum GoalCategory {
+    personal = "personal",
+    work = "work",
+    health = "health",
+    learning = "learning",
+    other = "other"
 }
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
@@ -61,4 +83,8 @@ export interface backendInterface {
     toggleTaskCompletion(taskId: string): Promise<void>;
     updateProject(id: string, name: string, color: string): Promise<void>;
     updateTask(id: string, title: string, desc: string, priority: Priority, dueDate: string | null, notes: string, projectId: string | null): Promise<void>;
+    createGoal(id: string, title: string, description: string, category: GoalCategory, targetDate: string | null, notes: string): Promise<void>;
+    updateGoal(id: string, title: string, description: string, category: GoalCategory, targetDate: string | null, status: GoalStatus, progress: number, notes: string): Promise<void>;
+    deleteGoal(goalId: string): Promise<void>;
+    getAllGoals(): Promise<Array<Goal>>;
 }

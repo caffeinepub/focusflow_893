@@ -25,7 +25,7 @@ actor {
     title : Text;
     description : Text;
     priority : Priority;
-    dueDate : ?Text; // ISO timestamp
+    dueDate : ?Text;
     completed : Bool;
     notes : Text;
     projectId : ?Text;
@@ -36,6 +36,32 @@ actor {
     completedTasks : Nat;
     pendingTasks : Nat;
     overdueTasks : Nat;
+  };
+
+  public type GoalStatus = { #active; #completed; #paused };
+  public type GoalCategory = { #personal; #work; #health; #learning; #other };
+
+  public type Goal = {
+    id : Text;
+    title : Text;
+    description : Text;
+    category : GoalCategory;
+    targetDate : ?Text;
+    status : GoalStatus;
+    progress : Nat;
+    notes : Text;
+  };
+
+  public type JournalMood = { #happy; #neutral; #sad; #stressed; #energized };
+
+  public type JournalEntry = {
+    id : Text;
+    title : Text;
+    content : Text;
+    mood : JournalMood;
+    tags : [Text];
+    date : Text; // ISO date string YYYY-MM-DD
+    createdAt : Text; // ISO timestamp
   };
 
   public type UserProfile = {
@@ -88,6 +114,8 @@ actor {
   let projects = Map.empty<Principal, Map.Map<Text, Project>>();
   let tasks = Map.empty<Principal, Map.Map<Text, Task>>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let goals = Map.empty<Principal, Map.Map<Text, Goal>>();
+  let journalEntries = Map.empty<Principal, Map.Map<Text, JournalEntry>>();
 
   // Authorization
   let accessControlState = AccessControl.initState();
@@ -168,7 +196,6 @@ actor {
       case (?userProjects) {
         userProjects.remove(projectId);
 
-        // Update tasks that reference the deleted project
         switch (tasks.get(caller)) {
           case (null) {};
           case (?userTasks) {
@@ -263,7 +290,6 @@ actor {
     };
   };
 
-  // Task Completion
   public shared ({ caller }) func toggleTaskCompletion(taskId : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can toggle task completion");
@@ -280,6 +306,160 @@ actor {
         let updatedTask = { currentTask with completed = not currentTask.completed };
         userTasks.add(taskId, updatedTask);
       };
+    };
+  };
+
+  // Goal CRUD
+  public shared ({ caller }) func createGoal(id : Text, title : Text, description : Text, category : GoalCategory, targetDate : ?Text, notes : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can create goals");
+    };
+
+    if (id == "" or title == "") {
+      Runtime.trap("Goal ID and title cannot be empty");
+    };
+
+    let userGoals = switch (goals.get(caller)) {
+      case (null) {
+        let newMap = Map.empty<Text, Goal>();
+        goals.add(caller, newMap);
+        newMap;
+      };
+      case (?existing) { existing };
+    };
+
+    if (userGoals.containsKey(id)) {
+      Runtime.trap("Goal ID already exists");
+    };
+
+    let goal : Goal = {
+      id;
+      title;
+      description;
+      category;
+      targetDate;
+      status = #active;
+      progress = 0;
+      notes;
+    };
+    userGoals.add(id, goal);
+  };
+
+  public shared ({ caller }) func updateGoal(id : Text, title : Text, description : Text, category : GoalCategory, targetDate : ?Text, status : GoalStatus, progress : Nat, notes : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can update goals");
+    };
+
+    let userGoals = switch (goals.get(caller)) {
+      case (null) { Runtime.trap("Goal not found") };
+      case (?existing) { existing };
+    };
+
+    let clampedProgress = if (progress > 100) { 100 } else { progress };
+
+    let goal : Goal = {
+      id;
+      title;
+      description;
+      category;
+      targetDate;
+      status;
+      progress = clampedProgress;
+      notes;
+    };
+    userGoals.add(id, goal);
+  };
+
+  public shared ({ caller }) func deleteGoal(goalId : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can delete goals");
+    };
+
+    if (goalId == "") { Runtime.trap("Goal ID cannot be empty") };
+
+    switch (goals.get(caller)) {
+      case (null) { Runtime.trap("Goal not found") };
+      case (?userGoals) {
+        userGoals.remove(goalId);
+      };
+    };
+  };
+
+  public query ({ caller }) func getAllGoals() : async [Goal] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view goals");
+    };
+
+    switch (goals.get(caller)) {
+      case (null) { [] };
+      case (?userGoals) { userGoals.values().toArray() };
+    };
+  };
+
+  // Journal CRUD
+  public shared ({ caller }) func createJournalEntry(id : Text, title : Text, content : Text, mood : JournalMood, tags : [Text], date : Text, createdAt : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can create journal entries");
+    };
+
+    if (id == "" or title == "") {
+      Runtime.trap("Entry ID and title cannot be empty");
+    };
+
+    let userEntries = switch (journalEntries.get(caller)) {
+      case (null) {
+        let newMap = Map.empty<Text, JournalEntry>();
+        journalEntries.add(caller, newMap);
+        newMap;
+      };
+      case (?existing) { existing };
+    };
+
+    if (userEntries.containsKey(id)) {
+      Runtime.trap("Entry ID already exists");
+    };
+
+    let entry : JournalEntry = { id; title; content; mood; tags; date; createdAt };
+    userEntries.add(id, entry);
+  };
+
+  public shared ({ caller }) func updateJournalEntry(id : Text, title : Text, content : Text, mood : JournalMood, tags : [Text], date : Text, createdAt : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can update journal entries");
+    };
+
+    let userEntries = switch (journalEntries.get(caller)) {
+      case (null) { Runtime.trap("Entry not found") };
+      case (?existing) { existing };
+    };
+
+    let entry : JournalEntry = { id; title; content; mood; tags; date; createdAt };
+    userEntries.add(id, entry);
+  };
+
+  public shared ({ caller }) func deleteJournalEntry(entryId : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can delete journal entries");
+    };
+
+    if (entryId == "") { Runtime.trap("Entry ID cannot be empty") };
+
+    switch (journalEntries.get(caller)) {
+      case (null) { Runtime.trap("Entry not found") };
+      case (?userEntries) {
+        userEntries.remove(entryId);
+      };
+    };
+  };
+
+  public query ({ caller }) func getAllJournalEntries() : async [JournalEntry] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view journal entries");
+    };
+
+    switch (journalEntries.get(caller)) {
+      case (null) { [] };
+      case (?userEntries) { userEntries.values().toArray() };
     };
   };
 
@@ -373,9 +553,6 @@ actor {
         let totalTasks = allTasks.size();
         let completedTasks = allTasks.filter(func(t) { t.completed }).size();
         let pendingTasks = allTasks.filter(func(t) { not t.completed }).size();
-
-        // Note: Overdue calculation would require current timestamp comparison
-        // For now, returning 0 as placeholder
         let overdueTasks = 0;
 
         {

@@ -11,12 +11,16 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import {
+  BarChart3,
+  BookOpen,
+  CalendarDays,
   CheckSquare,
   FolderOpen,
   LayoutDashboard,
   LogIn,
   LogOut,
   Menu,
+  Target,
   Timer,
   User,
   X,
@@ -24,9 +28,13 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
+import CalendarPage from "./pages/CalendarPage";
 import DashboardPage from "./pages/DashboardPage";
 import FocusPage from "./pages/FocusPage";
+import GoalsPage from "./pages/GoalsPage";
+import JournalPage from "./pages/JournalPage";
 import ProjectsPage from "./pages/ProjectsPage";
+import ReportsPage from "./pages/ReportsPage";
 import TasksPage from "./pages/TasksPage";
 
 // ─── Navigation config ───────────────────────────────────────────────────────
@@ -45,7 +53,31 @@ const navItems = [
     icon: FolderOpen,
     ocid: "nav.projects.link",
   },
+  {
+    to: "/goals",
+    label: "Goals",
+    icon: Target,
+    ocid: "nav.goals.link",
+  },
+  {
+    to: "/journal",
+    label: "Journal",
+    icon: BookOpen,
+    ocid: "nav.journal.link",
+  },
   { to: "/focus", label: "Focus Timer", icon: Timer, ocid: "nav.focus.link" },
+  {
+    to: "/calendar",
+    label: "Calendar",
+    icon: CalendarDays,
+    ocid: "nav.calendar.link",
+  },
+  {
+    to: "/reports",
+    label: "Reports",
+    icon: BarChart3,
+    ocid: "nav.reports.link",
+  },
 ] as const;
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
@@ -80,7 +112,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-2 space-y-1">
+      <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground px-3 mb-3">
           Navigation
         </p>
@@ -273,17 +305,45 @@ const projectsRoute = createRoute({
   component: ProjectsPage,
 });
 
+const goalsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/goals",
+  component: GoalsPage,
+});
+
+const journalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/journal",
+  component: JournalPage,
+});
+
 const focusRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/focus",
   component: FocusPage,
 });
 
+const calendarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/calendar",
+  component: CalendarPage,
+});
+
+const reportsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/reports",
+  component: ReportsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   tasksRoute,
   projectsRoute,
+  goalsRoute,
+  journalRoute,
   focusRoute,
+  calendarRoute,
+  reportsRoute,
 ]);
 
 const router = createRouter({ routeTree });

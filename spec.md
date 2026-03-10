@@ -1,38 +1,25 @@
-# FocusFlow - Productivity App
+# FocusFlow
 
 ## Current State
-New project. No existing code or features.
+FocusFlow has a Reports page with weekly/3-month/6-month views showing task/project stats, and a Journal page where users can write entries with mood tags (Happy, Neutral, Sad, Stressed, Energized).
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Task Management**: Create, read, update, delete tasks with title, description, priority (low/medium/high), due date, and completion status
-- **Projects**: Organize tasks into named projects/categories
-- **Dashboard**: Overview showing task stats (total, completed, pending, overdue)
-- **Filters & Views**: Filter tasks by status (all, active, completed), priority, and project
-- **Focus Timer (Pomodoro)**: 25-minute work sessions with 5-minute breaks, session counter
-- **Notes**: Quick notes/scratch pad area per task or standalone
+- Weekly Reflection Summary section on the Reports page
+  - Mood trend visualization (bar or pie chart showing mood distribution for the week)
+  - Journal entry count for the current week
+  - Most common mood badge
+  - Brief mood trend description text
 
 ### Modify
-N/A
+- ReportsPage.tsx: Add a WeeklyReflection section that reads from journalEntries (localStorage or same store as JournalPage) and displays mood stats and entry count for the current week
 
 ### Remove
-N/A
+- Nothing
 
 ## Implementation Plan
-
-### Backend (Motoko)
-- `Task` type: id, title, description, priority, dueDate, projectId, completed, createdAt, notes
-- `Project` type: id, name, color, createdAt
-- CRUD operations for tasks and projects
-- Query: get tasks by project, get tasks by status, get overdue tasks
-- Stats query: counts by status and priority
-
-### Frontend (React)
-- Sidebar navigation: Dashboard, Tasks, Projects, Focus Timer
-- Dashboard page: stat cards (total/completed/pending/overdue), today's task list
-- Tasks page: full task list with filters, add/edit task modal, priority badges, due date display
-- Projects page: project cards with task counts, add/edit project
-- Focus Timer page: Pomodoro timer with start/pause/reset, session counter, task selector
-- Shared components: TaskCard, TaskForm, ProjectBadge, PriorityBadge
-- Responsive layout with collapsible sidebar on mobile
+1. Read journal entries from localStorage (same key as JournalPage uses)
+2. Filter entries from the current week (Mon-Sun)
+3. Count entries and tally mood frequency
+4. Display a summary card with entry count, mood distribution chart, and dominant mood badge in the Reports weekly view

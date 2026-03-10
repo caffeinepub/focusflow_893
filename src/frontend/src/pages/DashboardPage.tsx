@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  FolderOpen,
   ListTodo,
   Loader2,
   Plus,
@@ -106,6 +107,18 @@ export default function DashboardPage() {
     today.setHours(23, 59, 59, 999);
     return due <= today;
   });
+
+  // Projects progress: top 5 by task count
+  const projectsWithProgress = projects
+    .map((p) => {
+      const projectTasks = (tasks ?? []).filter((t) => t.projectId === p.id);
+      const total = projectTasks.length;
+      const completed = projectTasks.filter((t) => t.completed).length;
+      const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+      return { ...p, total, completed, progress };
+    })
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
 
   const handleCreate = async (data: {
     title: string;
@@ -250,12 +263,95 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {/* Projects Progress */}
+      <section data-ocid="dashboard.projects_progress.section">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg font-semibold text-foreground">
+              Projects Progress
+            </h2>
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+              {projectsWithProgress.length} project
+              {projectsWithProgress.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          {loadingTasks ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : projectsWithProgress.length === 0 ? (
+            <div
+              className="border border-dashed border-border rounded-xl p-8 text-center"
+              data-ocid="dashboard.projects_progress.empty_state"
+            >
+              <FolderOpen className="w-7 h-7 text-primary mx-auto mb-2" />
+              <p className="text-sm font-medium text-foreground">
+                No projects yet
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Create a project to track progress.
+              </p>
+            </div>
+          ) : (
+            <Card className="border-border bg-card">
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {projectsWithProgress.map((project, i) => (
+                    <div
+                      key={project.id}
+                      className="flex items-center gap-4 px-5 py-3.5"
+                      data-ocid={`dashboard.projects_progress.item.${i + 1}`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: project.color }}
+                      />
+                      <span className="text-sm font-medium text-foreground min-w-0 truncate flex-1">
+                        {project.name}
+                      </span>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                          {project.completed} / {project.total} tasks
+                        </span>
+                        <div className="w-28 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${project.progress}%` }}
+                            transition={{
+                              duration: 0.6,
+                              delay: 0.1 + i * 0.06,
+                              ease: "easeOut",
+                            }}
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: project.color }}
+                          />
+                        </div>
+                        <span className="text-xs font-semibold text-foreground tabular-nums w-9 text-right">
+                          {project.progress}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </motion.div>
+      </section>
+
       {/* Today's Tasks */}
       <section>
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
+          transition={{ delay: 0.28 }}
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-lg font-semibold text-foreground">

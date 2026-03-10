@@ -11,6 +11,101 @@ import { useInternetIdentity } from "./useInternetIdentity";
 export { Priority };
 export type { Task, Project, DashboardSummary };
 
+// ─── Goal types (defined locally since backend.ts doesn't export them yet) ────────
+
+export enum GoalStatus {
+  active = "active",
+  completed = "completed",
+  paused = "paused",
+}
+
+export enum GoalCategory {
+  personal = "personal",
+  work = "work",
+  health = "health",
+  learning = "learning",
+  other = "other",
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  description: string;
+  category: GoalCategory;
+  targetDate?: string;
+  status: GoalStatus;
+  progress: number;
+  notes: string;
+}
+
+// ─── Actor type extension for goals ──────────────────────────────────────────────
+
+interface GoalActor {
+  createGoal(
+    id: string,
+    title: string,
+    description: string,
+    category: GoalCategory,
+    targetDate: string | null,
+    notes: string,
+  ): Promise<void>;
+  updateGoal(
+    id: string,
+    title: string,
+    description: string,
+    category: GoalCategory,
+    targetDate: string | null,
+    status: GoalStatus,
+    progress: number,
+    notes: string,
+  ): Promise<void>;
+  deleteGoal(goalId: string): Promise<void>;
+  getAllGoals(): Promise<Array<Goal>>;
+}
+
+// ─── Journal types ────────────────────────────────────────────────────────────
+
+export enum JournalMood {
+  happy = "happy",
+  neutral = "neutral",
+  sad = "sad",
+  stressed = "stressed",
+  energized = "energized",
+}
+
+export interface JournalEntry {
+  id: string;
+  title: string;
+  content: string;
+  mood: JournalMood;
+  tags: string[];
+  date: string;
+  createdAt: string;
+}
+
+interface JournalActor {
+  createJournalEntry(
+    id: string,
+    title: string,
+    content: string,
+    mood: JournalMood,
+    tags: string[],
+    date: string,
+    createdAt: string,
+  ): Promise<void>;
+  updateJournalEntry(
+    id: string,
+    title: string,
+    content: string,
+    mood: JournalMood,
+    tags: string[],
+    date: string,
+    createdAt: string,
+  ): Promise<void>;
+  deleteJournalEntry(entryId: string): Promise<void>;
+  getAllJournalEntries(): Promise<JournalEntry[]>;
+}
+
 // ─── Queries ────────────────────────────────────────────────────────────────
 
 export function useDashboardSummary() {
@@ -82,6 +177,34 @@ export function useSearchTasks(searchTerm: string) {
     },
     enabled:
       !!actor && !isFetching && !!identity && searchTerm.trim().length > 0,
+  });
+}
+
+export function useAllGoals() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery<Goal[]>({
+    queryKey: ["goals"],
+    queryFn: async () => {
+      if (!actor) return [];
+      const goalActor = actor as unknown as GoalActor;
+      return goalActor.getAllGoals();
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
+}
+
+export function useAllJournalEntries() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery<JournalEntry[]>({
+    queryKey: ["journalEntries"],
+    queryFn: async () => {
+      if (!actor) return [];
+      const journalActor = actor as unknown as JournalActor;
+      return journalActor.getAllJournalEntries();
+    },
+    enabled: !!actor && !isFetching && !!identity,
   });
 }
 
@@ -218,6 +341,160 @@ export function useDeleteProject() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["projects"] });
       void qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}
+
+export function useCreateGoal() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      id: string;
+      title: string;
+      description: string;
+      category: GoalCategory;
+      targetDate: string | null;
+      notes: string;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      const goalActor = actor as unknown as GoalActor;
+      return goalActor.createGoal(
+        params.id,
+        params.title,
+        params.description,
+        params.category,
+        params.targetDate,
+        params.notes,
+      );
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
+}
+
+export function useUpdateGoal() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      id: string;
+      title: string;
+      description: string;
+      category: GoalCategory;
+      targetDate: string | null;
+      status: GoalStatus;
+      progress: number;
+      notes: string;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      const goalActor = actor as unknown as GoalActor;
+      return goalActor.updateGoal(
+        params.id,
+        params.title,
+        params.description,
+        params.category,
+        params.targetDate,
+        params.status,
+        params.progress,
+        params.notes,
+      );
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
+}
+
+export function useDeleteGoal() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (goalId: string) => {
+      if (!actor) throw new Error("Not authenticated");
+      const goalActor = actor as unknown as GoalActor;
+      return goalActor.deleteGoal(goalId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
+}
+
+export function useCreateJournalEntry() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      id: string;
+      title: string;
+      content: string;
+      mood: JournalMood;
+      tags: string[];
+      date: string;
+      createdAt: string;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      const journalActor = actor as unknown as JournalActor;
+      return journalActor.createJournalEntry(
+        params.id,
+        params.title,
+        params.content,
+        params.mood,
+        params.tags,
+        params.date,
+        params.createdAt,
+      );
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["journalEntries"] });
+    },
+  });
+}
+
+export function useUpdateJournalEntry() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      id: string;
+      title: string;
+      content: string;
+      mood: JournalMood;
+      tags: string[];
+      date: string;
+      createdAt: string;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      const journalActor = actor as unknown as JournalActor;
+      return journalActor.updateJournalEntry(
+        params.id,
+        params.title,
+        params.content,
+        params.mood,
+        params.tags,
+        params.date,
+        params.createdAt,
+      );
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["journalEntries"] });
+    },
+  });
+}
+
+export function useDeleteJournalEntry() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (entryId: string) => {
+      if (!actor) throw new Error("Not authenticated");
+      const journalActor = actor as unknown as JournalActor;
+      return journalActor.deleteJournalEntry(entryId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["journalEntries"] });
     },
   });
 }
