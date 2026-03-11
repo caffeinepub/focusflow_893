@@ -13,10 +13,48 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const GoalCategory = IDL.Variant({
+  'other' : IDL.Null,
+  'learning' : IDL.Null,
+  'work' : IDL.Null,
+  'personal' : IDL.Null,
+  'health' : IDL.Null,
+});
+export const JournalMood = IDL.Variant({
+  'sad' : IDL.Null,
+  'happy' : IDL.Null,
+  'energized' : IDL.Null,
+  'stressed' : IDL.Null,
+  'neutral' : IDL.Null,
+});
 export const Priority = IDL.Variant({
   'low' : IDL.Null,
   'high' : IDL.Null,
   'medium' : IDL.Null,
+});
+export const GoalStatus = IDL.Variant({
+  'active' : IDL.Null,
+  'completed' : IDL.Null,
+  'paused' : IDL.Null,
+});
+export const Goal = IDL.Record({
+  'id' : IDL.Text,
+  'status' : GoalStatus,
+  'title' : IDL.Text,
+  'description' : IDL.Text,
+  'progress' : IDL.Nat,
+  'targetDate' : IDL.Opt(IDL.Text),
+  'notes' : IDL.Text,
+  'category' : GoalCategory,
+});
+export const JournalEntry = IDL.Record({
+  'id' : IDL.Text,
+  'title' : IDL.Text,
+  'content' : IDL.Text,
+  'date' : IDL.Text,
+  'mood' : JournalMood,
+  'createdAt' : IDL.Text,
+  'tags' : IDL.Vec(IDL.Text),
 });
 export const Project = IDL.Record({
   'id' : IDL.Text,
@@ -44,6 +82,24 @@ export const DashboardSummary = IDL.Record({
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'createGoal' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, GoalCategory, IDL.Opt(IDL.Text), IDL.Text],
+      [],
+      [],
+    ),
+  'createJournalEntry' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        JournalMood,
+        IDL.Vec(IDL.Text),
+        IDL.Text,
+        IDL.Text,
+      ],
+      [],
+      [],
+    ),
   'createProject' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
   'createTask' : IDL.Func(
       [
@@ -58,8 +114,12 @@ export const idlService = IDL.Service({
       [],
       [],
     ),
+  'deleteGoal' : IDL.Func([IDL.Text], [], []),
+  'deleteJournalEntry' : IDL.Func([IDL.Text], [], []),
   'deleteProject' : IDL.Func([IDL.Text], [], []),
   'deleteTask' : IDL.Func([IDL.Text], [], []),
+  'getAllGoals' : IDL.Func([], [IDL.Vec(Goal)], ['query']),
+  'getAllJournalEntries' : IDL.Func([], [IDL.Vec(JournalEntry)], ['query']),
   'getAllProjects' : IDL.Func([], [IDL.Vec(Project)], ['query']),
   'getAllTasks' : IDL.Func([], [IDL.Vec(Task)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
@@ -76,6 +136,33 @@ export const idlService = IDL.Service({
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'searchTasks' : IDL.Func([IDL.Text], [IDL.Vec(Task)], ['query']),
   'toggleTaskCompletion' : IDL.Func([IDL.Text], [], []),
+  'updateGoal' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        GoalCategory,
+        IDL.Opt(IDL.Text),
+        GoalStatus,
+        IDL.Nat,
+        IDL.Text,
+      ],
+      [],
+      [],
+    ),
+  'updateJournalEntry' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        JournalMood,
+        IDL.Vec(IDL.Text),
+        IDL.Text,
+        IDL.Text,
+      ],
+      [],
+      [],
+    ),
   'updateProject' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
   'updateTask' : IDL.Func(
       [
@@ -100,10 +187,48 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const GoalCategory = IDL.Variant({
+    'other' : IDL.Null,
+    'learning' : IDL.Null,
+    'work' : IDL.Null,
+    'personal' : IDL.Null,
+    'health' : IDL.Null,
+  });
+  const JournalMood = IDL.Variant({
+    'sad' : IDL.Null,
+    'happy' : IDL.Null,
+    'energized' : IDL.Null,
+    'stressed' : IDL.Null,
+    'neutral' : IDL.Null,
+  });
   const Priority = IDL.Variant({
     'low' : IDL.Null,
     'high' : IDL.Null,
     'medium' : IDL.Null,
+  });
+  const GoalStatus = IDL.Variant({
+    'active' : IDL.Null,
+    'completed' : IDL.Null,
+    'paused' : IDL.Null,
+  });
+  const Goal = IDL.Record({
+    'id' : IDL.Text,
+    'status' : GoalStatus,
+    'title' : IDL.Text,
+    'description' : IDL.Text,
+    'progress' : IDL.Nat,
+    'targetDate' : IDL.Opt(IDL.Text),
+    'notes' : IDL.Text,
+    'category' : GoalCategory,
+  });
+  const JournalEntry = IDL.Record({
+    'id' : IDL.Text,
+    'title' : IDL.Text,
+    'content' : IDL.Text,
+    'date' : IDL.Text,
+    'mood' : JournalMood,
+    'createdAt' : IDL.Text,
+    'tags' : IDL.Vec(IDL.Text),
   });
   const Project = IDL.Record({
     'id' : IDL.Text,
@@ -131,6 +256,31 @@ export const idlFactory = ({ IDL }) => {
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'createGoal' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          GoalCategory,
+          IDL.Opt(IDL.Text),
+          IDL.Text,
+        ],
+        [],
+        [],
+      ),
+    'createJournalEntry' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          JournalMood,
+          IDL.Vec(IDL.Text),
+          IDL.Text,
+          IDL.Text,
+        ],
+        [],
+        [],
+      ),
     'createProject' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
     'createTask' : IDL.Func(
         [
@@ -145,8 +295,12 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'deleteGoal' : IDL.Func([IDL.Text], [], []),
+    'deleteJournalEntry' : IDL.Func([IDL.Text], [], []),
     'deleteProject' : IDL.Func([IDL.Text], [], []),
     'deleteTask' : IDL.Func([IDL.Text], [], []),
+    'getAllGoals' : IDL.Func([], [IDL.Vec(Goal)], ['query']),
+    'getAllJournalEntries' : IDL.Func([], [IDL.Vec(JournalEntry)], ['query']),
     'getAllProjects' : IDL.Func([], [IDL.Vec(Project)], ['query']),
     'getAllTasks' : IDL.Func([], [IDL.Vec(Task)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
@@ -163,6 +317,33 @@ export const idlFactory = ({ IDL }) => {
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'searchTasks' : IDL.Func([IDL.Text], [IDL.Vec(Task)], ['query']),
     'toggleTaskCompletion' : IDL.Func([IDL.Text], [], []),
+    'updateGoal' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          GoalCategory,
+          IDL.Opt(IDL.Text),
+          GoalStatus,
+          IDL.Nat,
+          IDL.Text,
+        ],
+        [],
+        [],
+      ),
+    'updateJournalEntry' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          JournalMood,
+          IDL.Vec(IDL.Text),
+          IDL.Text,
+          IDL.Text,
+        ],
+        [],
+        [],
+      ),
     'updateProject' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
     'updateTask' : IDL.Func(
         [

@@ -20,6 +20,8 @@ import {
   LogIn,
   LogOut,
   Menu,
+  Palette,
+  Repeat2,
   Target,
   Timer,
   User,
@@ -28,16 +30,18 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
+import { useTheme } from "./hooks/useTheme";
 import CalendarPage from "./pages/CalendarPage";
 import DashboardPage from "./pages/DashboardPage";
 import FocusPage from "./pages/FocusPage";
 import GoalsPage from "./pages/GoalsPage";
+import HabitsPage from "./pages/HabitsPage";
 import JournalPage from "./pages/JournalPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ReportsPage from "./pages/ReportsPage";
 import TasksPage from "./pages/TasksPage";
 
-// ─── Navigation config ───────────────────────────────────────────────────────
+// ─── Navigation config ─────────────────────────────────────────────────────
 
 const navItems = [
   {
@@ -60,6 +64,12 @@ const navItems = [
     ocid: "nav.goals.link",
   },
   {
+    to: "/habits",
+    label: "Habits",
+    icon: Repeat2,
+    ocid: "nav.habits.link",
+  },
+  {
     to: "/journal",
     label: "Journal",
     icon: BookOpen,
@@ -80,13 +90,16 @@ const navItems = [
   },
 ] as const;
 
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
+// ─── Sidebar ──────────────────────────────────────────────────────────────────────
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { identity, login, clear, isLoggingIn } = useInternetIdentity();
   const isAuthenticated = !!identity;
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+  const { theme, toggleTheme } = useTheme();
+
+  const isAmber = theme === "amber";
 
   return (
     <div className="flex flex-col h-full">
@@ -141,6 +154,28 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
       {/* Footer / Auth */}
       <div className="px-3 py-4 border-t border-border space-y-3">
+        {/* Theme Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-muted-foreground hover:text-foreground"
+          onClick={toggleTheme}
+          data-ocid="theme.toggle_button"
+        >
+          <Palette className="w-4 h-4 mr-2 flex-shrink-0" />
+          <span className="flex-1 text-left">
+            {isAmber ? "Emerald Theme" : "Amber Theme"}
+          </span>
+          <span
+            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+            style={{
+              backgroundColor: isAmber
+                ? "oklch(0.72 0.19 156)"
+                : "oklch(0.78 0.19 75)",
+            }}
+          />
+        </Button>
+
         {isAuthenticated ? (
           <div className="space-y-2">
             <div className="flex items-center gap-3 px-3 py-2">
@@ -191,7 +226,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   );
 }
 
-// ─── Layout ───────────────────────────────────────────────────────────────────
+// ─── Layout ────────────────────────────────────────────────────────────────────────
 
 function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -268,7 +303,7 @@ function Layout() {
   );
 }
 
-// ─── Router setup ─────────────────────────────────────────────────────────────
+// ─── Router setup ────────────────────────────────────────────────────────────────────
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -311,6 +346,12 @@ const goalsRoute = createRoute({
   component: GoalsPage,
 });
 
+const habitsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/habits",
+  component: HabitsPage,
+});
+
 const journalRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/journal",
@@ -340,6 +381,7 @@ const routeTree = rootRoute.addChildren([
   tasksRoute,
   projectsRoute,
   goalsRoute,
+  habitsRoute,
   journalRoute,
   focusRoute,
   calendarRoute,

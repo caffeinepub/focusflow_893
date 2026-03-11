@@ -150,7 +150,7 @@ function GoalForm({
   const [status, setStatus] = useState<GoalStatus>(
     initialData?.status ?? GoalStatus.active,
   );
-  const [progress, setProgress] = useState(initialData?.progress ?? 0);
+  const [progress, setProgress] = useState(Number(initialData?.progress ?? 0));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -388,13 +388,13 @@ function GoalCard({
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Progress</span>
               <span className="text-xs font-semibold text-foreground tabular-nums">
-                {goal.progress}%
+                {Number(goal.progress)}%
               </span>
             </div>
             <div className="h-1.5 bg-muted rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${goal.progress}%` }}
+                animate={{ width: `${Number(goal.progress)}%` }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
                 className={cn(
                   "h-full rounded-full",
@@ -421,8 +421,24 @@ function GoalCard({
 
 // ─── Timeline View ────────────────────────────────────────────────────────────
 
+type TimelinePeriod = 1 | 3 | 6 | 12;
+
+const PERIOD_OPTIONS: { value: TimelinePeriod; label: string; ocid: string }[] =
+  [
+    { value: 1, label: "1 Month", ocid: "goals.period_1mo.button" },
+    { value: 3, label: "3 Months", ocid: "goals.period_3mo.button" },
+    { value: 6, label: "6 Months", ocid: "goals.period_6mo.button" },
+    { value: 12, label: "1 Year", ocid: "goals.period_1yr.button" },
+  ];
+
+function periodLabel(period: TimelinePeriod): string {
+  if (period === 1) return "1 month";
+  if (period === 12) return "1 year";
+  return `${period} months`;
+}
+
 function TimelineView({ goals }: { goals: Goal[] }) {
-  const [period, setPeriod] = useState<3 | 6>(3);
+  const [period, setPeriod] = useState<TimelinePeriod>(3);
 
   const { grouped, noDate } = useMemo(() => {
     const now = new Date();
@@ -465,24 +481,18 @@ function TimelineView({ goals }: { goals: Goal[] }) {
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">Show next:</span>
         <div className="flex gap-1.5">
-          <Button
-            size="sm"
-            variant={period === 3 ? "default" : "outline"}
-            onClick={() => setPeriod(3)}
-            data-ocid="goals.period_3mo.button"
-            className="h-8 text-xs"
-          >
-            3 Months
-          </Button>
-          <Button
-            size="sm"
-            variant={period === 6 ? "default" : "outline"}
-            onClick={() => setPeriod(6)}
-            data-ocid="goals.period_6mo.button"
-            className="h-8 text-xs"
-          >
-            6 Months
-          </Button>
+          {PERIOD_OPTIONS.map((opt) => (
+            <Button
+              key={opt.value}
+              size="sm"
+              variant={period === opt.value ? "default" : "outline"}
+              onClick={() => setPeriod(opt.value)}
+              data-ocid={opt.ocid}
+              className="h-8 text-xs"
+            >
+              {opt.label}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -496,8 +506,8 @@ function TimelineView({ goals }: { goals: Goal[] }) {
             No goals in this period
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Goals with target dates in the next {period} months will appear
-            here.
+            Goals with target dates in the next {periodLabel(period)} will
+            appear here.
           </p>
         </div>
       ) : (
@@ -618,7 +628,7 @@ export default function GoalsPage() {
         category: data.category,
         targetDate: data.targetDate || null,
         status: data.status ?? editGoal.status,
-        progress: data.progress ?? editGoal.progress,
+        progress: data.progress ?? Number(editGoal.progress),
         notes: data.notes,
       });
       setEditGoal(null);

@@ -6,6 +6,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -23,16 +24,20 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Flame,
   ListTodo,
   LogIn,
+  Printer,
   SmilePlus,
   Target,
+  Timer,
   TrendingUp,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { type FocusSession, useFocusSessions } from "../hooks/useFocusSessions";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   type Goal,
@@ -322,14 +327,38 @@ function StatCard({
 
 // ─── Goals Summary Card ───────────────────────────────────────────────────────
 
-function GoalsSummaryCard({ goals }: { goals: Goal[] }) {
-  const active = goals.filter((g) => g.status === GoalStatus.active).length;
-  const completed = goals.filter(
+function GoalsSummaryCard({
+  goals,
+  months,
+}: { goals: Goal[]; months: number }) {
+  const now = new Date();
+  const periodEnd = new Date(
+    now.getFullYear(),
+    now.getMonth() + months,
+    now.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
+  const periodGoals = goals.filter((g) => {
+    if (!g.targetDate) return false;
+    const d = new Date(g.targetDate);
+    return d >= now && d <= periodEnd;
+  });
+
+  const active = periodGoals.filter(
+    (g) => g.status === GoalStatus.active,
+  ).length;
+  const completed = periodGoals.filter(
     (g) => g.status === GoalStatus.completed,
   ).length;
   const avgProgress =
-    goals.length > 0
-      ? Math.round(goals.reduce((sum, g) => sum + g.progress, 0) / goals.length)
+    periodGoals.length > 0
+      ? Math.round(
+          periodGoals.reduce((sum, g) => sum + Number(g.progress), 0) /
+            periodGoals.length,
+        )
       : 0;
 
   return (
@@ -343,32 +372,84 @@ function GoalsSummaryCard({ goals }: { goals: Goal[] }) {
         <CardHeader className="pb-3">
           <CardTitle className="font-display text-base flex items-center gap-2">
             <Target className="w-4 h-4 text-primary" />
-            Goals Overview
+            Goals Snapshot ({months}-Month Window)
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-2xl font-display font-bold text-amber-400">
-                {active}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Active</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-display font-bold text-emerald-400">
-                {completed}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Completed</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-display font-bold text-foreground">
-                {avgProgress}%
+        <CardContent className="space-y-4">
+          {periodGoals.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-border rounded-xl"
+              data-ocid="reports.goals_snapshot.empty_state"
+            >
+              <Target className="w-6 h-6 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No goals due in the next {months} months.
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Avg Progress
+                Set a target date on your goals to see them here.
               </p>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className="text-2xl font-display font-bold text-amber-400">
+                    {active}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Active</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-display font-bold text-emerald-400">
+                    {completed}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Completed
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-display font-bold text-foreground">
+                    {avgProgress}%
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Avg Progress
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3 pt-1">
+                {periodGoals.map((g, i) => (
+                  <div
+                    key={g.id}
+                    className="space-y-1"
+                    data-ocid={`reports.goals_snapshot.item.${i + 1}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-foreground truncate flex-1">
+                        {g.title}
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Badge
+                          className={cn(
+                            "text-[10px] px-1.5 py-0 border-none font-semibold",
+                            g.status === GoalStatus.completed
+                              ? "bg-emerald-500/15 text-emerald-400"
+                              : g.status === GoalStatus.paused
+                                ? "bg-muted text-muted-foreground"
+                                : "bg-amber-500/15 text-amber-400",
+                          )}
+                        >
+                          {g.status}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground tabular-nums w-8 text-right">
+                          {g.progress}%
+                        </span>
+                      </div>
+                    </div>
+                    <Progress value={Number(g.progress)} className="h-1.5" />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </motion.div>
@@ -514,7 +595,7 @@ function PeriodView({
       </motion.div>
 
       {/* Goals summary */}
-      <GoalsSummaryCard goals={goals} />
+      <GoalsSummaryCard goals={goals} months={months} />
 
       {/* Projects within period */}
       {projectStats.length > 0 && (
@@ -573,6 +654,231 @@ function PeriodView({
         </motion.div>
       )}
     </div>
+  );
+}
+
+// ─── Goals This Week Card ─────────────────────────────────────────────────────
+
+function GoalsThisWeekCard({
+  goals,
+  weekStart,
+  weekEnd,
+}: {
+  goals: Goal[];
+  weekStart: Date;
+  weekEnd: Date;
+}) {
+  const weekGoals = useMemo(() => {
+    return goals.filter((g) => {
+      if (!g.targetDate) return false;
+      const d = new Date(g.targetDate);
+      return d >= weekStart && d <= weekEnd;
+    });
+  }, [goals, weekStart, weekEnd]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.45 }}
+      data-ocid="reports.goals_week.card"
+    >
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-display text-base flex items-center gap-2">
+            <Target className="w-4 h-4 text-primary" />
+            Goals This Week
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Goals with target dates falling this week
+          </p>
+        </CardHeader>
+        <CardContent>
+          {weekGoals.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-border rounded-xl"
+              data-ocid="reports.goals_week.empty_state"
+            >
+              <Target className="w-6 h-6 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No goals due this week.
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Goals with target dates in this week will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {weekGoals.map((g, i) => (
+                <div
+                  key={g.id}
+                  className="space-y-1.5"
+                  data-ocid={`reports.goals_week.item.${i + 1}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground truncate flex-1">
+                      {g.title}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <Badge
+                        className={cn(
+                          "text-[10px] px-1.5 py-0 border-none font-semibold",
+                          g.status === GoalStatus.completed
+                            ? "bg-emerald-500/15 text-emerald-400"
+                            : g.status === GoalStatus.paused
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-amber-500/15 text-amber-400",
+                        )}
+                      >
+                        {g.status}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {g.targetDate
+                          ? new Date(g.targetDate).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Progress
+                      value={Number(g.progress)}
+                      className="h-1.5 flex-1"
+                    />
+                    <span className="text-xs font-semibold text-foreground tabular-nums w-8 text-right">
+                      {g.progress}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+// ─── Focus Time This Week Card ────────────────────────────────────────────────
+
+function FocusTimeCard({
+  focusSessions,
+  weekStart,
+  weekEnd,
+}: {
+  focusSessions: FocusSession[];
+  weekStart: Date;
+  weekEnd: Date;
+}) {
+  const weekSessions = useMemo(() => {
+    return focusSessions.filter((s) => {
+      const d = new Date(s.completedAt);
+      return d >= weekStart && d <= weekEnd;
+    });
+  }, [focusSessions, weekStart, weekEnd]);
+
+  const totalSeconds = weekSessions.reduce(
+    (sum, s) => sum + s.durationSeconds,
+    0,
+  );
+  const totalMinutes = Math.round(totalSeconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  const displayTime = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+
+  const taskBreakdown = useMemo(() => {
+    const map: Record<string, { label: string; minutes: number }> = {};
+    for (const s of weekSessions) {
+      const key = s.taskId ?? "__notask__";
+      const label = s.taskTitle ?? "No task linked";
+      if (!map[key]) map[key] = { label, minutes: 0 };
+      map[key].minutes += Math.round(s.durationSeconds / 60);
+    }
+    return Object.values(map).sort((a, b) => b.minutes - a.minutes);
+  }, [weekSessions]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+      data-ocid="reports.focus_time.card"
+    >
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-display text-base flex items-center gap-2">
+            <Timer className="w-4 h-4 text-primary" />
+            Focus Time This Week
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Pomodoro sessions completed this week
+          </p>
+        </CardHeader>
+        <CardContent>
+          {weekSessions.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-border rounded-xl"
+              data-ocid="reports.focus_time.empty_state"
+            >
+              <Clock className="w-6 h-6 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No focus sessions this week.
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Complete a Pomodoro session to see your focus log here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-primary/10 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-display font-bold text-primary">
+                    {displayTime}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Total focus time
+                  </p>
+                </div>
+                <div className="bg-muted/50 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-display font-bold text-foreground">
+                    {weekSessions.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Sessions completed
+                  </p>
+                </div>
+              </div>
+              {taskBreakdown.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    By Task
+                  </p>
+                  {taskBreakdown.map(({ label, minutes }, i) => (
+                    <div
+                      key={label}
+                      className="flex items-center justify-between gap-2"
+                      data-ocid={`reports.focus_time.item.${i + 1}`}
+                    >
+                      <span className="text-sm text-foreground truncate flex-1">
+                        {label}
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className="text-xs flex-shrink-0"
+                      >
+                        {minutes}m
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -766,10 +1072,14 @@ function WeeklyView({
   tasks,
   isLoading,
   journalEntries,
+  goals,
+  focusSessions,
 }: {
   tasks: Task[];
   isLoading: boolean;
   journalEntries: JournalEntry[];
+  goals: Goal[];
+  focusSessions: FocusSession[];
 }) {
   const [weekStart, setWeekStart] = useState<Date>(() =>
     getWeekStart(new Date()),
@@ -1040,6 +1350,20 @@ function WeeklyView({
               weekStart={weekStart}
               weekEnd={weekEnd}
             />
+
+            {/* Goals This Week */}
+            <GoalsThisWeekCard
+              goals={goals}
+              weekStart={weekStart}
+              weekEnd={weekEnd}
+            />
+
+            {/* Focus Time This Week */}
+            <FocusTimeCard
+              focusSessions={focusSessions}
+              weekStart={weekStart}
+              weekEnd={weekEnd}
+            />
           </>
         </>
       )}
@@ -1056,6 +1380,7 @@ export default function ReportsPage() {
   const { data: projects = [] } = useAllProjects();
   const { data: goals = [], isLoading: loadingGoals } = useAllGoals();
   const { data: journalEntries = [] } = useAllJournalEntries();
+  const { sessions: focusSessions } = useFocusSessions();
 
   const [periodTab, setPeriodTab] = useState<"weekly" | "3mo" | "6mo">(
     "weekly",
@@ -1100,14 +1425,25 @@ export default function ReportsPage() {
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-6"
+        className="mb-6 flex items-start justify-between gap-4"
       >
-        <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-          Reports
-        </h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Your productivity summary across time periods
-        </p>
+        <div>
+          <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+            Reports
+          </h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Your productivity summary across time periods
+          </p>
+        </div>
+        <button
+          type="button"
+          data-ocid="reports.export_pdf.button"
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-colors print:hidden"
+        >
+          <Printer className="w-4 h-4" />
+          Export PDF
+        </button>
       </motion.div>
 
       {/* Period tabs */}
@@ -1144,6 +1480,8 @@ export default function ReportsPage() {
           tasks={tasks}
           isLoading={loadingTasks}
           journalEntries={journalEntries}
+          goals={goals}
+          focusSessions={focusSessions}
         />
       )}
       {periodTab === "3mo" && (

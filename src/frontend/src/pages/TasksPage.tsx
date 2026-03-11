@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Filter, Loader2, Plus, Search } from "lucide-react";
+import { Filter, Flame, Loader2, Plus, Search } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ import {
   useToggleTaskCompletion,
   useUpdateTask,
 } from "../hooks/useQueries";
+import { useTaskStreak } from "../hooks/useTaskStreak";
 
 type FilterTab = "all" | "active" | "completed";
 
@@ -46,6 +47,8 @@ export default function TasksPage() {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const toggleTask = useToggleTaskCompletion();
+
+  const { recordCompletion, currentStreak } = useTaskStreak();
 
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -114,8 +117,13 @@ export default function TasksPage() {
   };
 
   const handleToggle = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
     try {
       await toggleTask.mutateAsync(id);
+      // If task was not completed before, record streak completion
+      if (task && !task.completed) {
+        recordCompletion();
+      }
     } catch {
       toast.error("Failed to update task");
     }
@@ -129,6 +137,15 @@ export default function TasksPage() {
       toast.error("Failed to delete task");
     }
   };
+
+  const milestoneLabel =
+    currentStreak >= 30
+      ? "🎯 30-day milestone!"
+      : currentStreak >= 14
+        ? "🎯 14-day milestone!"
+        : currentStreak >= 7
+          ? "🎯 7-day milestone!"
+          : null;
 
   if (!isAuthenticated) {
     return (
@@ -144,7 +161,7 @@ export default function TasksPage() {
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex items-center justify-between flex-wrap gap-3"
       >
         <div>
           <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
@@ -154,10 +171,42 @@ export default function TasksPage() {
             {tasks.length} total tasks
           </p>
         </div>
-        <Button onClick={() => setAddOpen(true)} data-ocid="task.add_button">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Task
-        </Button>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Streak badge */}
+          <motion.div
+            data-ocid="task.streak.card"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="flex items-center gap-2"
+          >
+            {currentStreak >= 1 ? (
+              <div className="flex items-center gap-1.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded-full px-3 py-1.5 text-sm font-semibold">
+                <Flame className="w-4 h-4 text-amber-400" />
+                <span>{currentStreak} day streak</span>
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground italic">
+                Start your streak today
+              </span>
+            )}
+            {milestoneLabel && (
+              <motion.span
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full px-2.5 py-1 font-medium"
+              >
+                {milestoneLabel}
+              </motion.span>
+            )}
+          </motion.div>
+
+          <Button onClick={() => setAddOpen(true)} data-ocid="task.add_button">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Task
+          </Button>
+        </div>
       </motion.div>
 
       {/* Filters */}

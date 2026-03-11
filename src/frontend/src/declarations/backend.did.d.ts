@@ -16,6 +16,38 @@ export interface DashboardSummary {
   'completedTasks' : bigint,
   'pendingTasks' : bigint,
 }
+export interface Goal {
+  'id' : string,
+  'status' : GoalStatus,
+  'title' : string,
+  'description' : string,
+  'progress' : bigint,
+  'targetDate' : [] | [string],
+  'notes' : string,
+  'category' : GoalCategory,
+}
+export type GoalCategory = { 'other' : null } |
+  { 'learning' : null } |
+  { 'work' : null } |
+  { 'personal' : null } |
+  { 'health' : null };
+export type GoalStatus = { 'active' : null } |
+  { 'completed' : null } |
+  { 'paused' : null };
+export interface JournalEntry {
+  'id' : string,
+  'title' : string,
+  'content' : string,
+  'date' : string,
+  'mood' : JournalMood,
+  'createdAt' : string,
+  'tags' : Array<string>,
+}
+export type JournalMood = { 'sad' : null } |
+  { 'happy' : null } |
+  { 'energized' : null } |
+  { 'stressed' : null } |
+  { 'neutral' : null };
 export type Priority = { 'low' : null } |
   { 'high' : null } |
   { 'medium' : null };
@@ -37,13 +69,25 @@ export type UserRole = { 'admin' : null } |
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'createGoal' : ActorMethod<
+    [string, string, string, GoalCategory, [] | [string], string],
+    undefined
+  >,
+  'createJournalEntry' : ActorMethod<
+    [string, string, string, JournalMood, Array<string>, string, string],
+    undefined
+  >,
   'createProject' : ActorMethod<[string, string, string], undefined>,
   'createTask' : ActorMethod<
     [string, string, string, Priority, [] | [string], string, [] | [string]],
     undefined
   >,
+  'deleteGoal' : ActorMethod<[string], undefined>,
+  'deleteJournalEntry' : ActorMethod<[string], undefined>,
   'deleteProject' : ActorMethod<[string], undefined>,
   'deleteTask' : ActorMethod<[string], undefined>,
+  'getAllGoals' : ActorMethod<[], Array<Goal>>,
+  'getAllJournalEntries' : ActorMethod<[], Array<JournalEntry>>,
   'getAllProjects' : ActorMethod<[], Array<Project>>,
   'getAllTasks' : ActorMethod<[], Array<Task>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
@@ -56,6 +100,23 @@ export interface _SERVICE {
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'searchTasks' : ActorMethod<[string], Array<Task>>,
   'toggleTaskCompletion' : ActorMethod<[string], undefined>,
+  'updateGoal' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      GoalCategory,
+      [] | [string],
+      GoalStatus,
+      bigint,
+      string,
+    ],
+    undefined
+  >,
+  'updateJournalEntry' : ActorMethod<
+    [string, string, string, JournalMood, Array<string>, string, string],
+    undefined
+  >,
   'updateProject' : ActorMethod<[string, string, string], undefined>,
   'updateTask' : ActorMethod<
     [string, string, string, Priority, [] | [string], string, [] | [string]],

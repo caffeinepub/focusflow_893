@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -12,16 +12,18 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Flame,
   FolderOpen,
   ListTodo,
-  Loader2,
   Plus,
+  Repeat2,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import TaskCard from "../components/TaskCard";
 import TaskForm from "../components/TaskForm";
+import { useHabits } from "../hooks/useHabits";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   type Priority,
@@ -34,6 +36,7 @@ import {
   useToggleTaskCompletion,
   useUpdateTask,
 } from "../hooks/useQueries";
+import { useTaskStreak } from "../hooks/useTaskStreak";
 
 function StatCard({
   label,
@@ -44,7 +47,7 @@ function StatCard({
   delay,
 }: {
   label: string;
-  value: bigint | number | undefined;
+  value: bigint | number | string | undefined;
   icon: React.ComponentType<{ className?: string }>;
   iconColor: string;
   ocid: string;
@@ -94,6 +97,11 @@ export default function DashboardPage() {
   const toggleTask = useToggleTaskCompletion();
   const deleteTask = useDeleteTask();
   const updateTask = useUpdateTask();
+
+  const { recordCompletion, currentStreak } = useTaskStreak();
+  const { getTodayCompletionCount } = useHabits();
+  const { completed: habitsCompleted, total: habitsTotal } =
+    getTodayCompletionCount();
 
   const [addOpen, setAddOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
@@ -156,8 +164,13 @@ export default function DashboardPage() {
   };
 
   const handleToggle = async (id: string) => {
+    const task = (tasks ?? []).find((t) => t.id === id);
     try {
       await toggleTask.mutateAsync(id);
+      // If task was not completed before, record streak completion
+      if (task && !task.completed) {
+        recordCompletion();
+      }
     } catch {
       toast.error("Failed to update task");
     }
@@ -227,7 +240,7 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <section>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
           <StatCard
             label="Total Tasks"
             value={loadingSummary ? undefined : summary?.totalTasks}
@@ -260,6 +273,22 @@ export default function DashboardPage() {
             ocid="dashboard.overdue.card"
             delay={0.2}
           />
+          <StatCard
+            label="Day Streak"
+            value={currentStreak}
+            icon={Flame}
+            iconColor="bg-amber-500/15 text-amber-400"
+            ocid="dashboard.streak.card"
+            delay={0.25}
+          />
+          <StatCard
+            label="Habits Today"
+            value={`${habitsCompleted}/${habitsTotal}`}
+            icon={Repeat2}
+            iconColor="bg-teal-500/15 text-teal-400"
+            ocid="dashboard.habits.card"
+            delay={0.3}
+          />
         </div>
       </section>
 
@@ -268,7 +297,7 @@ export default function DashboardPage() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.22 }}
+          transition={{ delay: 0.28 }}
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-lg font-semibold text-foreground">
@@ -351,7 +380,7 @@ export default function DashboardPage() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.28 }}
+          transition={{ delay: 0.34 }}
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-lg font-semibold text-foreground">

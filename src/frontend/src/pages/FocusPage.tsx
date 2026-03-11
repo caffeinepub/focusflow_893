@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -12,15 +13,19 @@ import { cn } from "@/lib/utils";
 import {
   Brain,
   CheckCircle2,
+  Clock,
   Coffee,
+  History,
   Pause,
   Play,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusSessions } from "../hooks/useFocusSessions";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useAllTasks } from "../hooks/useQueries";
+import { useAllProjects, useAllTasks } from "../hooks/useQueries";
 
 type TimerMode = "work" | "break";
 
@@ -33,6 +38,14 @@ function formatTime(seconds: number) {
     .padStart(2, "0");
   const s = (seconds % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
+}
+
+function formatDuration(seconds: number): string {
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
 // SVG circular progress ring
@@ -96,14 +109,19 @@ export default function FocusPage() {
   const { identity } = useInternetIdentity();
   const isAuthenticated = !!identity;
   const { data: tasks = [] } = useAllTasks();
+  const { data: projects = [] } = useAllProjects();
+  const { sessions, saveSession, clearSessions } = useFocusSessions();
 
   const [mode, setMode] = useState<TimerMode>("work");
   const [secondsLeft, setSecondsLeft] = useState(WORK_SECONDS);
   const [isRunning, setIsRunning] = useState(false);
-  const [sessions, setSessions] = useState(0);
+  const [sessionCount, setSessionCount] = useState(0);
   const [linkedTaskId, setLinkedTaskId] = useState<string>("none");
+  const [showHistory, setShowHistory] = useState(false);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedAtRef = useRef<string | null>(null);
+
   const totalSeconds = mode === "work" ? WORK_SECONDS : BREAK_SECONDS;
   const progress = secondsLeft / totalSeconds;
 
@@ -118,15 +136,39 @@ export default function FocusPage() {
     }
   }, []);
 
+  const handleSessionComplete = useCallback(() => {
+    const completedAt = new Date().toISOString();
+    const startedAt =
+      startedAtRef.current ??
+      new Date(Date.now() - WORK_SECONDS * 1000).toISOString();
+    const project = linkedTask?.projectId
+      ? projects.find((p) => p.id === linkedTask.projectId)
+      : null;
+    saveSession({
+      startedAt,
+      completedAt,
+      durationSeconds: WORK_SECONDS,
+      taskId: linkedTask?.id ?? null,
+      taskTitle: linkedTask?.title ?? null,
+      projectId: project?.id ?? null,
+      projectName: project?.name ?? null,
+    });
+    startedAtRef.current = null;
+  }, [linkedTask, projects, saveSession]);
+
   useEffect(() => {
     if (isRunning) {
+      if (!startedAtRef.current) {
+        startedAtRef.current = new Date().toISOString();
+      }
       intervalRef.current = setInterval(() => {
         setSecondsLeft((prev) => {
           if (prev <= 1) {
             stopTimer();
             setIsRunning(false);
             if (mode === "work") {
-              setSessions((s) => s + 1);
+              setSessionCount((s) => s + 1);
+              handleSessionComplete();
             }
             return 0;
           }
@@ -137,17 +179,19 @@ export default function FocusPage() {
       stopTimer();
     }
     return stopTimer;
-  }, [isRunning, stopTimer, mode]);
+  }, [isRunning, stopTimer, mode, handleSessionComplete]);
 
   const handleStart = () => setIsRunning(true);
   const handlePause = () => setIsRunning(false);
   const handleReset = () => {
     setIsRunning(false);
+    startedAtRef.current = null;
     setSecondsLeft(mode === "work" ? WORK_SECONDS : BREAK_SECONDS);
   };
 
   const switchMode = (newMode: TimerMode) => {
     setIsRunning(false);
+    startedAtRef.current = null;
     setMode(newMode);
     setSecondsLeft(newMode === "work" ? WORK_SECONDS : BREAK_SECONDS);
   };
@@ -160,13 +204,31 @@ export default function FocusPage() {
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
       >
-        <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-          Focus Timer
-        </h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Pomodoro technique for deep focus
-        </p>
+        <div>
+          <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+            Focus Timer
+          </h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Pomodoro technique for deep focus
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowHistory((v) => !v)}
+          className="gap-2"
+          data-ocid="focus.history.toggle"
+        >
+          <History className="w-3.5 h-3.5" />
+          History
+          {sessions.length > 0 && (
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">
+              {sessions.length}
+            </Badge>
+          )}
+        </Button>
       </motion.div>
 
       {/* Mode toggle */}
@@ -181,6 +243,7 @@ export default function FocusPage() {
           size="sm"
           onClick={() => switchMode("work")}
           className="gap-2"
+          data-ocid="focus.work_mode.toggle"
         >
           <Brain className="w-3.5 h-3.5" />
           Focus
@@ -190,6 +253,7 @@ export default function FocusPage() {
           size="sm"
           onClick={() => switchMode("break")}
           className="gap-2"
+          data-ocid="focus.break_mode.toggle"
           style={
             isBreak
               ? { backgroundColor: "oklch(0.65 0.18 220)", color: "white" }
@@ -270,15 +334,15 @@ export default function FocusPage() {
 
           <div className="h-11 w-11 rounded-full border border-border flex items-center justify-center">
             <span className="text-xs font-medium text-muted-foreground">
-              {sessions}
+              {sessionCount}
             </span>
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground mt-2">
-          {sessions === 0
+          {sessionCount === 0
             ? "Start your first session"
-            : `${sessions} session${sessions !== 1 ? "s" : ""} completed today`}
+            : `${sessionCount} session${sessionCount !== 1 ? "s" : ""} completed today`}
         </p>
       </motion.div>
 
@@ -299,23 +363,23 @@ export default function FocusPage() {
           <CardContent className="space-y-4">
             {/* Completed sessions */}
             <div className="flex items-center gap-3 flex-wrap">
-              {Array.from({ length: Math.max(sessions, 4) }, (_, i) => (
+              {Array.from({ length: Math.max(sessionCount, 4) }, (_, i) => (
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: timer session slots are positional
                   key={i}
                   className={cn(
                     "w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all",
-                    i < sessions
+                    i < sessionCount
                       ? "border-primary bg-primary/20 text-primary"
                       : "border-border text-muted-foreground",
                   )}
                 >
-                  {i < sessions ? "✓" : i + 1}
+                  {i < sessionCount ? "✓" : i + 1}
                 </div>
               ))}
-              {sessions > 4 && (
+              {sessionCount > 4 && (
                 <Badge variant="secondary" className="text-xs">
-                  +{sessions - 4} more
+                  +{sessionCount - 4} more
                 </Badge>
               )}
             </div>
@@ -326,7 +390,11 @@ export default function FocusPage() {
                 <p className="text-xs text-muted-foreground font-medium">
                   Working on:
                 </p>
-                <Select value={linkedTaskId} onValueChange={setLinkedTaskId}>
+                <Select
+                  value={linkedTaskId}
+                  onValueChange={setLinkedTaskId}
+                  data-ocid="focus.task.select"
+                >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder="Link a task (optional)" />
                   </SelectTrigger>
@@ -385,7 +453,7 @@ export default function FocusPage() {
               </div>
               <div>
                 <p className="font-display text-2xl font-bold text-foreground">
-                  {sessions}
+                  {sessionCount}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   sessions done
@@ -395,6 +463,96 @@ export default function FocusPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Session History */}
+      <AnimatePresence>
+        {showHistory && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25 }}
+            data-ocid="focus.history.panel"
+          >
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="font-display text-base flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-primary" />
+                    Session History
+                  </CardTitle>
+                  {sessions.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearSessions}
+                      className="text-muted-foreground hover:text-destructive gap-1.5 h-7 px-2"
+                      data-ocid="focus.history.delete_button"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Clear history
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {sessions.length === 0 ? (
+                  <div
+                    className="flex flex-col items-center justify-center py-10 text-center"
+                    data-ocid="focus.history.empty_state"
+                  >
+                    <Clock className="w-8 h-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No sessions recorded yet.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Complete a focus session to see it here.
+                    </p>
+                  </div>
+                ) : (
+                  <ScrollArea className="max-h-72">
+                    <div className="divide-y divide-border">
+                      {sessions.map((s, idx) => (
+                        <div
+                          key={s.id}
+                          className="flex items-center gap-3 px-5 py-3"
+                          data-ocid={`focus.history.item.${idx + 1}`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0">
+                            <Brain className="w-3.5 h-3.5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {s.taskTitle ?? "No task linked"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {s.projectName ?? "—"} &middot;{" "}
+                              {new Date(s.completedAt).toLocaleDateString(
+                                "en-US",
+                                { month: "short", day: "numeric" },
+                              )}{" "}
+                              {new Date(s.completedAt).toLocaleTimeString(
+                                "en-US",
+                                { hour: "2-digit", minute: "2-digit" },
+                              )}
+                            </p>
+                          </div>
+                          <Badge
+                            variant="secondary"
+                            className="text-xs flex-shrink-0"
+                          >
+                            {formatDuration(s.durationSeconds)}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

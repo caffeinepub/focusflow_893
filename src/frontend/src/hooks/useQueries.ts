@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type DashboardSummary,
+  type Goal,
+  GoalCategory,
+  GoalStatus,
+  type JournalEntry,
+  JournalMood,
   Priority,
   type Project,
   type Task,
@@ -8,103 +13,8 @@ import {
 import { useActor } from "./useActor";
 import { useInternetIdentity } from "./useInternetIdentity";
 
-export { Priority };
-export type { Task, Project, DashboardSummary };
-
-// ─── Goal types (defined locally since backend.ts doesn't export them yet) ────────
-
-export enum GoalStatus {
-  active = "active",
-  completed = "completed",
-  paused = "paused",
-}
-
-export enum GoalCategory {
-  personal = "personal",
-  work = "work",
-  health = "health",
-  learning = "learning",
-  other = "other",
-}
-
-export interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  category: GoalCategory;
-  targetDate?: string;
-  status: GoalStatus;
-  progress: number;
-  notes: string;
-}
-
-// ─── Actor type extension for goals ──────────────────────────────────────────────
-
-interface GoalActor {
-  createGoal(
-    id: string,
-    title: string,
-    description: string,
-    category: GoalCategory,
-    targetDate: string | null,
-    notes: string,
-  ): Promise<void>;
-  updateGoal(
-    id: string,
-    title: string,
-    description: string,
-    category: GoalCategory,
-    targetDate: string | null,
-    status: GoalStatus,
-    progress: number,
-    notes: string,
-  ): Promise<void>;
-  deleteGoal(goalId: string): Promise<void>;
-  getAllGoals(): Promise<Array<Goal>>;
-}
-
-// ─── Journal types ────────────────────────────────────────────────────────────
-
-export enum JournalMood {
-  happy = "happy",
-  neutral = "neutral",
-  sad = "sad",
-  stressed = "stressed",
-  energized = "energized",
-}
-
-export interface JournalEntry {
-  id: string;
-  title: string;
-  content: string;
-  mood: JournalMood;
-  tags: string[];
-  date: string;
-  createdAt: string;
-}
-
-interface JournalActor {
-  createJournalEntry(
-    id: string,
-    title: string,
-    content: string,
-    mood: JournalMood,
-    tags: string[],
-    date: string,
-    createdAt: string,
-  ): Promise<void>;
-  updateJournalEntry(
-    id: string,
-    title: string,
-    content: string,
-    mood: JournalMood,
-    tags: string[],
-    date: string,
-    createdAt: string,
-  ): Promise<void>;
-  deleteJournalEntry(entryId: string): Promise<void>;
-  getAllJournalEntries(): Promise<JournalEntry[]>;
-}
+export { GoalCategory, GoalStatus, JournalMood, Priority };
+export type { DashboardSummary, Goal, JournalEntry, Project, Task };
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
@@ -187,8 +97,7 @@ export function useAllGoals() {
     queryKey: ["goals"],
     queryFn: async () => {
       if (!actor) return [];
-      const goalActor = actor as unknown as GoalActor;
-      return goalActor.getAllGoals();
+      return actor.getAllGoals();
     },
     enabled: !!actor && !isFetching && !!identity,
   });
@@ -201,8 +110,7 @@ export function useAllJournalEntries() {
     queryKey: ["journalEntries"],
     queryFn: async () => {
       if (!actor) return [];
-      const journalActor = actor as unknown as JournalActor;
-      return journalActor.getAllJournalEntries();
+      return actor.getAllJournalEntries();
     },
     enabled: !!actor && !isFetching && !!identity,
   });
@@ -358,8 +266,7 @@ export function useCreateGoal() {
       notes: string;
     }) => {
       if (!actor) throw new Error("Not authenticated");
-      const goalActor = actor as unknown as GoalActor;
-      return goalActor.createGoal(
+      return actor.createGoal(
         params.id,
         params.title,
         params.description,
@@ -389,15 +296,14 @@ export function useUpdateGoal() {
       notes: string;
     }) => {
       if (!actor) throw new Error("Not authenticated");
-      const goalActor = actor as unknown as GoalActor;
-      return goalActor.updateGoal(
+      return actor.updateGoal(
         params.id,
         params.title,
         params.description,
         params.category,
         params.targetDate,
         params.status,
-        params.progress,
+        BigInt(params.progress),
         params.notes,
       );
     },
@@ -413,8 +319,7 @@ export function useDeleteGoal() {
   return useMutation({
     mutationFn: (goalId: string) => {
       if (!actor) throw new Error("Not authenticated");
-      const goalActor = actor as unknown as GoalActor;
-      return goalActor.deleteGoal(goalId);
+      return actor.deleteGoal(goalId);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["goals"] });
@@ -436,8 +341,7 @@ export function useCreateJournalEntry() {
       createdAt: string;
     }) => {
       if (!actor) throw new Error("Not authenticated");
-      const journalActor = actor as unknown as JournalActor;
-      return journalActor.createJournalEntry(
+      return actor.createJournalEntry(
         params.id,
         params.title,
         params.content,
@@ -467,8 +371,7 @@ export function useUpdateJournalEntry() {
       createdAt: string;
     }) => {
       if (!actor) throw new Error("Not authenticated");
-      const journalActor = actor as unknown as JournalActor;
-      return journalActor.updateJournalEntry(
+      return actor.updateJournalEntry(
         params.id,
         params.title,
         params.content,
@@ -490,8 +393,7 @@ export function useDeleteJournalEntry() {
   return useMutation({
     mutationFn: (entryId: string) => {
       if (!actor) throw new Error("Not authenticated");
-      const journalActor = actor as unknown as JournalActor;
-      return journalActor.deleteJournalEntry(entryId);
+      return actor.deleteJournalEntry(entryId);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["journalEntries"] });
