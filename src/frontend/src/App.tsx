@@ -13,10 +13,12 @@ import {
 import {
   BarChart3,
   BookOpen,
+  Brain,
   CalendarDays,
   CheckSquare,
   FolderOpen,
   LayoutDashboard,
+  ListChecks,
   LogIn,
   LogOut,
   Menu,
@@ -36,10 +38,12 @@ import DashboardPage from "./pages/DashboardPage";
 import FocusPage from "./pages/FocusPage";
 import GoalsPage from "./pages/GoalsPage";
 import HabitsPage from "./pages/HabitsPage";
+import InsightsPage from "./pages/InsightsPage";
 import JournalPage from "./pages/JournalPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ReportsPage from "./pages/ReportsPage";
 import TasksPage from "./pages/TasksPage";
+import TodoPage from "./pages/TodoPage";
 
 // ─── Navigation config ─────────────────────────────────────────────────────
 
@@ -51,6 +55,7 @@ const navItems = [
     ocid: "nav.dashboard.link",
   },
   { to: "/tasks", label: "Tasks", icon: CheckSquare, ocid: "nav.tasks.link" },
+  { to: "/todo", label: "To Do List", icon: ListChecks, ocid: "nav.todo.link" },
   {
     to: "/projects",
     label: "Projects",
@@ -62,6 +67,12 @@ const navItems = [
     label: "Goals",
     icon: Target,
     ocid: "nav.goals.link",
+  },
+  {
+    to: "/insights",
+    label: "AI Insights",
+    icon: Brain,
+    ocid: "nav.insights.link",
   },
   {
     to: "/habits",
@@ -334,6 +345,12 @@ const tasksRoute = createRoute({
   component: TasksPage,
 });
 
+const todoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/todo",
+  component: TodoPage,
+});
+
 const projectsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/projects",
@@ -370,6 +387,12 @@ const calendarRoute = createRoute({
   component: CalendarPage,
 });
 
+const insightsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/insights",
+  component: InsightsPage,
+});
+
 const reportsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/reports",
@@ -379,6 +402,7 @@ const reportsRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   tasksRoute,
+  todoRoute,
   projectsRoute,
   goalsRoute,
   habitsRoute,
@@ -386,6 +410,7 @@ const routeTree = rootRoute.addChildren([
   focusRoute,
   calendarRoute,
   reportsRoute,
+  insightsRoute,
 ]);
 
 const router = createRouter({ routeTree });
