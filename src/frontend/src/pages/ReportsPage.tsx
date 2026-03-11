@@ -29,7 +29,9 @@ import {
   ListTodo,
   LogIn,
   Printer,
+  RefreshCw,
   SmilePlus,
+  Sparkles,
   Target,
   Timer,
   TrendingUp,
@@ -465,7 +467,7 @@ function PeriodView({
   goals,
   isLoading,
 }: {
-  months: 3 | 6;
+  months: 1 | 3 | 6 | 12;
   tasks: Task[];
   projects: { id: string; name: string; color: string }[];
   goals: Goal[];
@@ -1373,6 +1375,176 @@ function WeeklyView({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── AI Summary ───────────────────────────────────────────────────────────────
+
+function AISummary({
+  tasks,
+  goals,
+  journalEntries,
+  focusSessions,
+  refreshKey,
+  onRefresh,
+}: {
+  tasks: Task[];
+  goals: Goal[];
+  journalEntries: JournalEntry[];
+  focusSessions: FocusSession[];
+  refreshKey: number;
+  onRefresh: () => void;
+}) {
+  const insights = useMemo(() => {
+    const _ = refreshKey; // trigger recompute on refresh
+    const results: { icon: string; text: string; color: string }[] = [];
+
+    // Task completion rate
+    const total = tasks.length;
+    const completed = tasks.filter((t) => t.completed).length;
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    results.push({
+      icon: "✅",
+      color: "text-emerald-500",
+      text: `Task completion rate: ${rate}% (${completed} of ${total} tasks completed)`,
+    });
+
+    // Tasks completed this week vs last week
+    const now = new Date();
+    const weekStart = getWeekStart(now);
+    const prevWeekStart = addWeeks(weekStart, -1);
+    const thisWeekDone = tasks.filter((t) => {
+      if (!t.completed || !t.dueDate) return false;
+      const d = new Date(Number(t.dueDate) / 1_000_000);
+      return d >= weekStart;
+    }).length;
+    const lastWeekDone = tasks.filter((t) => {
+      if (!t.completed || !t.dueDate) return false;
+      const d = new Date(Number(t.dueDate) / 1_000_000);
+      return d >= prevWeekStart && d < weekStart;
+    }).length;
+    const trendSymbol = thisWeekDone >= lastWeekDone ? "📈" : "📉";
+    results.push({
+      icon: trendSymbol,
+      color: thisWeekDone >= lastWeekDone ? "text-blue-500" : "text-orange-500",
+      text: `This week: ${thisWeekDone} tasks completed (${lastWeekDone} last week)`,
+    });
+
+    // Active goals
+    const activeGoals = goals.filter(
+      (g) => g.status === GoalStatus.active || g.status === GoalStatus.paused,
+    );
+    const avgProgress =
+      activeGoals.length > 0
+        ? Math.round(
+            activeGoals.reduce((sum, g) => sum + Number(g.progress), 0) /
+              activeGoals.length,
+          )
+        : 0;
+    results.push({
+      icon: "🎯",
+      color: "text-purple-500",
+      text: `${activeGoals.length} active goal${activeGoals.length !== 1 ? "s" : ""} — average progress ${avgProgress}%`,
+    });
+
+    // Mood trend from last 7 journal entries
+    const moodMap: Record<string, number> = {
+      [JournalMood.happy]: 2,
+      [JournalMood.energized]: 2,
+      [JournalMood.neutral]: 1,
+      [JournalMood.sad]: 0,
+      [JournalMood.stressed]: 0,
+    };
+    const recentMoods = [...journalEntries]
+      .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
+      .slice(0, 7)
+      .map((e) => moodMap[e.mood as string] ?? 1);
+    if (recentMoods.length > 0) {
+      const avgMood =
+        recentMoods.reduce((s, v) => s + v, 0) / recentMoods.length;
+      const moodLabel =
+        avgMood >= 1.5 ? "Positive 😊" : avgMood >= 1 ? "Neutral 😐" : "Low 😔";
+      results.push({
+        icon: "📓",
+        color: "text-amber-500",
+        text: `Mood trend (last ${recentMoods.length} entries): ${moodLabel}`,
+      });
+    }
+
+    // Total focus time
+    const totalMins = focusSessions.reduce(
+      (sum, s) => sum + Math.round(s.durationSeconds / 60),
+      0,
+    );
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    const focusLabel = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    results.push({
+      icon: "⏱️",
+      color: "text-cyan-500",
+      text: `Total focus time logged: ${focusLabel} across ${focusSessions.length} session${focusSessions.length !== 1 ? "s" : ""}`,
+    });
+
+    // Longest streak
+    const maxStreak = tasks.reduce(
+      (max, t) => Math.max(max, Number((t as any).streak ?? 0)),
+      0,
+    );
+    if (maxStreak > 0) {
+      results.push({
+        icon: "🔥",
+        color: "text-red-500",
+        text: `Longest task streak: ${maxStreak} day${maxStreak !== 1 ? "s" : ""}`,
+      });
+    }
+
+    return results;
+  }, [tasks, goals, journalEntries, focusSessions, refreshKey]);
+
+  return (
+    <Card
+      data-ocid="reports.ai_summary.card"
+      className="mb-6 border-primary/20 bg-card/80 backdrop-blur-sm"
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-primary" />
+            </div>
+            <CardTitle className="text-base font-semibold">
+              AI Summary
+            </CardTitle>
+          </div>
+          <button
+            type="button"
+            data-ocid="reports.ai_summary.button"
+            onClick={onRefresh}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Generated from your app data
+        </p>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-2">
+          {insights.map((insight) => (
+            <li key={insight.text} className="flex items-start gap-2.5 text-sm">
+              <span className="mt-0.5 text-base leading-none">
+                {insight.icon}
+              </span>
+              <span className="text-foreground/85 leading-snug">
+                {insight.text}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ReportsPage() {
   const { identity, login, isLoggingIn } = useInternetIdentity();
   const isAuthenticated = !!identity;
@@ -1382,9 +1554,10 @@ export default function ReportsPage() {
   const { data: journalEntries = [] } = useAllJournalEntries();
   const { sessions: focusSessions } = useFocusSessions();
 
-  const [periodTab, setPeriodTab] = useState<"weekly" | "3mo" | "6mo">(
-    "weekly",
-  );
+  const [periodTab, setPeriodTab] = useState<
+    "weekly" | "1mo" | "3mo" | "6mo" | "12mo"
+  >("weekly");
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
 
   if (!isAuthenticated) {
     return (
@@ -1454,8 +1627,10 @@ export default function ReportsPage() {
             label: "Weekly",
             ocid: "reports.weekly.tab",
           },
+          { key: "1mo" as const, label: "1 Month", ocid: "reports.1mo.tab" },
           { key: "3mo" as const, label: "3 Months", ocid: "reports.3mo.tab" },
           { key: "6mo" as const, label: "6 Months", ocid: "reports.6mo.tab" },
+          { key: "12mo" as const, label: "1 Year", ocid: "reports.12mo.tab" },
         ].map(({ key, label, ocid }) => (
           <button
             key={key}
@@ -1473,6 +1648,16 @@ export default function ReportsPage() {
           </button>
         ))}
       </div>
+
+      {/* AI Summary */}
+      <AISummary
+        tasks={tasks}
+        goals={goals}
+        journalEntries={journalEntries}
+        focusSessions={focusSessions}
+        refreshKey={summaryRefreshKey}
+        onRefresh={() => setSummaryRefreshKey((k) => k + 1)}
+      />
 
       {/* Content */}
       {periodTab === "weekly" && (
@@ -1496,6 +1681,24 @@ export default function ReportsPage() {
       {periodTab === "6mo" && (
         <PeriodView
           months={6}
+          tasks={tasks}
+          projects={projects}
+          goals={goals}
+          isLoading={loadingTasks || loadingGoals}
+        />
+      )}
+      {periodTab === "1mo" && (
+        <PeriodView
+          months={1}
+          tasks={tasks}
+          projects={projects}
+          goals={goals}
+          isLoading={loadingTasks || loadingGoals}
+        />
+      )}
+      {periodTab === "12mo" && (
+        <PeriodView
+          months={12}
           tasks={tasks}
           projects={projects}
           goals={goals}
