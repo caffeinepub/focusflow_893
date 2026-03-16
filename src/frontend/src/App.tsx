@@ -12,6 +12,8 @@ import {
 } from "@tanstack/react-router";
 import {
   BarChart3,
+  Bell,
+  BellOff,
   BookOpen,
   Brain,
   CalendarDays,
@@ -32,6 +34,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
+import { useReminders } from "./hooks/useReminders";
 import { useTheme } from "./hooks/useTheme";
 import CalendarPage from "./pages/CalendarPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -109,8 +112,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const { theme, toggleTheme } = useTheme();
+  const { remindersEnabled, toggleReminders } = useReminders(isAuthenticated);
 
-  const isAmber = theme === "amber";
+  const themeLabel =
+    theme === "emerald"
+      ? "Switch to Amber"
+      : theme === "amber"
+        ? "Switch to Light"
+        : "Switch to Emerald";
+
+  const themeDotColor =
+    theme === "emerald"
+      ? "oklch(0.72 0.19 156)"
+      : theme === "amber"
+        ? "oklch(0.78 0.19 75)"
+        : "oklch(0.60 0.19 156)";
 
   return (
     <div className="flex flex-col h-full">
@@ -174,16 +190,33 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           data-ocid="theme.toggle_button"
         >
           <Palette className="w-4 h-4 mr-2 flex-shrink-0" />
-          <span className="flex-1 text-left">
-            {isAmber ? "Emerald Theme" : "Amber Theme"}
-          </span>
+          <span className="flex-1 text-left">{themeLabel}</span>
           <span
             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-            style={{
-              backgroundColor: isAmber
-                ? "oklch(0.72 0.19 156)"
-                : "oklch(0.78 0.19 75)",
-            }}
+            style={{ backgroundColor: themeDotColor }}
+          />
+        </Button>
+
+        {/* Reminders Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-muted-foreground hover:text-foreground"
+          onClick={toggleReminders}
+          data-ocid="reminders.toggle_button"
+        >
+          {remindersEnabled ? (
+            <Bell className="w-4 h-4 mr-2 flex-shrink-0" />
+          ) : (
+            <BellOff className="w-4 h-4 mr-2 flex-shrink-0" />
+          )}
+          <span className="flex-1 text-left">
+            {remindersEnabled ? "Reminders On" : "Reminders Off"}
+          </span>
+          <span
+            className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              remindersEnabled ? "bg-green-500" : "bg-muted-foreground/40"
+            }`}
           />
         </Button>
 
@@ -317,20 +350,23 @@ function Layout() {
 // ─── Router setup ────────────────────────────────────────────────────────────────────
 
 const rootRoute = createRootRoute({
-  component: () => (
-    <>
-      <Layout />
-      <Toaster
-        theme="dark"
-        position="bottom-right"
-        toastOptions={{
-          classNames: {
-            toast: "bg-card border-border text-foreground",
-          },
-        }}
-      />
-    </>
-  ),
+  component: () => {
+    const { theme } = useTheme();
+    return (
+      <>
+        <Layout />
+        <Toaster
+          theme={theme === "light" ? "light" : "dark"}
+          position="bottom-right"
+          toastOptions={{
+            classNames: {
+              toast: "bg-card border-border text-foreground",
+            },
+          }}
+        />
+      </>
+    );
+  },
 });
 
 const indexRoute = createRoute({
