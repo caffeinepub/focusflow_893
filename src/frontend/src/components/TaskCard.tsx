@@ -2,14 +2,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { AlertCircle, CalendarDays, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarDays,
+  Pencil,
+  Repeat,
+  Trash2,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { Priority, type Project, type Task } from "../hooks/useQueries";
+
+type Recurrence = "none" | "daily" | "weekly";
 
 interface TaskCardProps {
   task: Task;
   projects: Project[];
   index: number;
+  recurrence?: Recurrence;
   onToggle: (id: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
@@ -68,6 +77,7 @@ export default function TaskCard({
   task,
   projects,
   index,
+  recurrence = "none",
   onToggle,
   onEdit,
   onDelete,
@@ -119,6 +129,12 @@ export default function TaskCard({
           >
             {getPriorityLabel(task.priority)}
           </span>
+          {recurrence !== "none" && (
+            <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 bg-primary/10 text-primary border border-primary/20">
+              <Repeat className="w-3 h-3" />
+              {recurrence === "daily" ? "Daily" : "Weekly"}
+            </span>
+          )}
         </div>
 
         {task.description && (

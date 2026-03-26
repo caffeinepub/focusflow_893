@@ -9,12 +9,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, Repeat } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Priority, type Project, type Task } from "../hooks/useQueries";
 
+type Recurrence = "none" | "daily" | "weekly";
+
 interface TaskFormProps {
   initialData?: Task;
+  initialRecurrence?: Recurrence;
   projects: Project[];
   onSubmit: (data: {
     title: string;
@@ -23,6 +26,7 @@ interface TaskFormProps {
     dueDate: string | null;
     notes: string;
     projectId: string | null;
+    recurrence: Recurrence;
   }) => void;
   isPending: boolean;
   onCancel: () => void;
@@ -30,6 +34,7 @@ interface TaskFormProps {
 
 export default function TaskForm({
   initialData,
+  initialRecurrence = "none",
   projects,
   onSubmit,
   isPending,
@@ -47,6 +52,7 @@ export default function TaskForm({
   const [projectId, setProjectId] = useState<string>(
     initialData?.projectId ?? "none",
   );
+  const [recurrence, setRecurrence] = useState<Recurrence>(initialRecurrence);
 
   useEffect(() => {
     if (initialData) {
@@ -57,7 +63,8 @@ export default function TaskForm({
       setNotes(initialData.notes);
       setProjectId(initialData.projectId ?? "none");
     }
-  }, [initialData]);
+    setRecurrence(initialRecurrence);
+  }, [initialData, initialRecurrence]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +76,7 @@ export default function TaskForm({
       dueDate: dueDate ? new Date(dueDate).toISOString() : null,
       notes: notes.trim(),
       projectId: projectId === "none" ? null : projectId,
+      recurrence,
     });
   };
 
@@ -143,6 +151,27 @@ export default function TaskForm({
             className="[color-scheme:dark]"
           />
         </div>
+      </div>
+
+      {/* Repeat / Recurrence */}
+      <div className="space-y-1.5">
+        <Label className="flex items-center gap-1.5">
+          <Repeat className="w-3.5 h-3.5 text-muted-foreground" />
+          Repeat
+        </Label>
+        <Select
+          value={recurrence}
+          onValueChange={(v) => setRecurrence(v as Recurrence)}
+        >
+          <SelectTrigger data-ocid="task.recurrence.select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Does not repeat</SelectItem>
+            <SelectItem value="daily">Daily</SelectItem>
+            <SelectItem value="weekly">Weekly</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1.5">

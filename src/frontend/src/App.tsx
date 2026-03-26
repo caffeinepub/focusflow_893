@@ -19,6 +19,7 @@ import {
   CalendarDays,
   CheckSquare,
   FolderOpen,
+  GraduationCap,
   LayoutDashboard,
   ListChecks,
   LogIn,
@@ -45,6 +46,7 @@ import InsightsPage from "./pages/InsightsPage";
 import JournalPage from "./pages/JournalPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ReportsPage from "./pages/ReportsPage";
+import StudyTrackerPage from "./pages/StudyTrackerPage";
 import TasksPage from "./pages/TasksPage";
 import TodoPage from "./pages/TodoPage";
 
@@ -64,6 +66,12 @@ const navItems = [
     label: "Projects",
     icon: FolderOpen,
     ocid: "nav.projects.link",
+  },
+  {
+    to: "/study",
+    label: "Study Tracker",
+    icon: GraduationCap,
+    ocid: "nav.study.link",
   },
   {
     to: "/goals",
@@ -393,6 +401,12 @@ const projectsRoute = createRoute({
   component: ProjectsPage,
 });
 
+const studyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/study",
+  component: StudyTrackerPage,
+});
+
 const goalsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/goals",
@@ -440,6 +454,7 @@ const routeTree = rootRoute.addChildren([
   tasksRoute,
   todoRoute,
   projectsRoute,
+  studyRoute,
   goalsRoute,
   habitsRoute,
   journalRoute,

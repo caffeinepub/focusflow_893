@@ -204,7 +204,14 @@ function computeMetrics(
   );
   const moodCounts: Record<string, number> = {};
   for (const e of recent30Journal) {
-    const key = Object.keys(e.mood)[0] ?? "neutral";
+    let key: string;
+    if (!e.mood) {
+      key = "neutral";
+    } else if (typeof e.mood === "string") {
+      key = e.mood;
+    } else {
+      key = Object.keys(e.mood as object)[0] ?? "neutral";
+    }
     moodCounts[key] = (moodCounts[key] ?? 0) + 1;
   }
   const moodColors: Record<string, string> = {
@@ -503,10 +510,13 @@ export default function InsightsPage() {
     }
   }, [refreshKey]);
 
-  const metrics = useMemo(
-    () => computeMetrics(tasks, goals, habits, journalEntries),
-    [tasks, goals, habits, journalEntries],
-  );
+  const metrics = useMemo(() => {
+    try {
+      return computeMetrics(tasks, goals, habits, journalEntries);
+    } catch {
+      return computeMetrics([], [], [], []);
+    }
+  }, [tasks, goals, habits, journalEntries]);
 
   const strengths = useMemo(() => getStrengths(metrics), [metrics]);
   const weaknesses = useMemo(() => getWeaknesses(metrics), [metrics]);

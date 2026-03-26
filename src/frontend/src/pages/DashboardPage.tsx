@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   BookOpen,
   Calendar,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -27,6 +28,7 @@ import {
   Repeat2,
   Target,
   Trash2,
+  TrendingUp,
   Trophy,
   X,
 } from "lucide-react";
@@ -39,6 +41,7 @@ import { type Habit, useHabits } from "../hooks/useHabits";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   type Goal,
+  GoalCategory,
   GoalStatus,
   type JournalEntry,
   JournalMood,
@@ -441,6 +444,265 @@ function HabitsModal({
   );
 }
 
+const CATEGORY_LABELS: Record<GoalCategory, string> = {
+  [GoalCategory.personal]: "Personal",
+  [GoalCategory.work]: "Work",
+  [GoalCategory.health]: "Health",
+  [GoalCategory.learning]: "Learning",
+  [GoalCategory.other]: "Other",
+};
+
+const CATEGORY_COLORS: Record<GoalCategory, string> = {
+  [GoalCategory.personal]:
+    "bg-violet-500/15 text-violet-400 border-violet-500/20",
+  [GoalCategory.work]: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  [GoalCategory.health]:
+    "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+  [GoalCategory.learning]: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+  [GoalCategory.other]: "bg-muted text-muted-foreground",
+};
+
+const PRIORITY_DOT: Record<string, string> = {
+  high: "bg-destructive",
+  medium: "bg-amber-400",
+  low: "bg-emerald-400",
+};
+
+function MiniCalendar({ tasks }: { tasks: Task[] }) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const monthName = today.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
+
+  // Build map: day -> tasks
+  const tasksByDay: Record<number, Task[]> = {};
+  for (const task of tasks) {
+    if (task.dueDate) {
+      const due = new Date(Number(task.dueDate) / 1_000_000);
+      if (due.getFullYear() === year && due.getMonth() === month) {
+        const d = due.getDate();
+        tasksByDay[d] = tasksByDay[d] ? [...tasksByDay[d], task] : [task];
+      }
+    }
+  }
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.36 }}
+    >
+      <Card className="border-border bg-card h-full">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-1.5 rounded-md bg-primary/15">
+              <CalendarDays className="w-4 h-4 text-primary" />
+            </div>
+            <h3 className="font-display font-semibold text-sm text-foreground">
+              {monthName}
+            </h3>
+          </div>
+          <div className="grid grid-cols-7 gap-0.5 text-center">
+            {weekDays.map((d) => (
+              <div
+                key={d}
+                className="text-[10px] font-medium text-muted-foreground py-1"
+              >
+                {d}
+              </div>
+            ))}
+            {cells.map((day, idx) => {
+              const cellKey = day
+                ? `day-${day}`
+                : `empty-${idx < 7 ? "pre" : "post"}-${idx}`;
+              if (!day) return <div key={cellKey} />;
+              const isToday = day === today.getDate();
+              const dayTasks = tasksByDay[day] ?? [];
+              const hasTasks = dayTasks.length > 0;
+              const topPriorities = dayTasks
+                .slice(0, 3)
+                .map((t) => String(t.priority ?? "low"));
+              const title = hasTasks
+                ? dayTasks.map((t) => t.title).join(", ")
+                : undefined;
+
+              return (
+                <div
+                  key={day}
+                  title={title}
+                  className="flex flex-col items-center py-0.5 gap-0.5 cursor-default"
+                >
+                  <span
+                    className={cn(
+                      "text-xs w-6 h-6 flex items-center justify-center rounded-full font-medium",
+                      isToday
+                        ? "bg-primary text-primary-foreground"
+                        : "text-foreground hover:bg-muted/60",
+                    )}
+                  >
+                    {day}
+                  </span>
+                  {hasTasks && (
+                    <div className="flex gap-0.5">
+                      {topPriorities.map((p, dotIdx) => {
+                        const dotKey = `${p}${dotIdx}`;
+                        return (
+                          <span
+                            key={dotKey}
+                            className={cn(
+                              "w-1 h-1 rounded-full",
+                              PRIORITY_DOT[p] ?? "bg-primary",
+                            )}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 pt-3 border-t border-border flex items-center gap-3 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-destructive inline-block" />
+              High
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+              Medium
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              Low
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function GoalsTimeline({ goals }: { goals: Goal[] }) {
+  const now = new Date();
+  const threeMonthsLater = new Date(
+    now.getFullYear(),
+    now.getMonth() + 3,
+    now.getDate(),
+  );
+
+  const upcoming = goals.filter((g) => {
+    if (!g.targetDate) return false;
+    const target = new Date(Number(g.targetDate) / 1_000_000);
+    return target >= now && target <= threeMonthsLater;
+  });
+
+  // Group by month label
+  const byMonth: Record<string, Goal[]> = {};
+  for (const g of upcoming) {
+    const target = new Date(Number(g.targetDate) / 1_000_000);
+    const label = target.toLocaleString("default", {
+      month: "long",
+      year: "numeric",
+    });
+    byMonth[label] = byMonth[label] ? [...byMonth[label], g] : [g];
+  }
+
+  const monthEntries = Object.entries(byMonth);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.4 }}
+    >
+      <Card className="border-border bg-card h-full">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-1.5 rounded-md bg-primary/15">
+              <TrendingUp className="w-4 h-4 text-primary" />
+            </div>
+            <h3 className="font-display font-semibold text-sm text-foreground">
+              Goals Timeline
+            </h3>
+            <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              Next 3 months
+            </span>
+          </div>
+          {monthEntries.length === 0 ? (
+            <div
+              data-ocid="dashboard.goals_timeline.empty_state"
+              className="flex flex-col items-center justify-center py-8 text-center"
+            >
+              <TrendingUp className="w-8 h-8 text-muted-foreground/40 mb-2" />
+              <p className="text-sm text-muted-foreground">No upcoming goals</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Add goals with a target date to see them here
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {monthEntries.map(([month, monthGoals]) => (
+                <div key={month}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {month}
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                  <div className="space-y-2">
+                    {monthGoals.map((goal, i) => (
+                      <div
+                        key={goal.id != null ? String(goal.id) : `goal-${i}`}
+                        className="flex items-center gap-2"
+                      >
+                        <span
+                          className={cn(
+                            "text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap",
+                            CATEGORY_COLORS[goal.category as GoalCategory] ??
+                              "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {CATEGORY_LABELS[goal.category as GoalCategory] ??
+                            "Other"}
+                        </span>
+                        <span className="text-xs text-foreground truncate flex-1 min-w-0">
+                          {goal.title}
+                        </span>
+                        <div className="w-16 shrink-0">
+                          <Progress
+                            value={Number(goal.progress ?? 0)}
+                            className="h-1.5"
+                          />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground w-7 text-right shrink-0">
+                          {Number(goal.progress ?? 0)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
 export default function DashboardPage() {
   const { identity } = useInternetIdentity();
   const isAuthenticated = !!identity;
@@ -516,6 +778,16 @@ export default function DashboardPage() {
   // Today's tasks: due today or overdue and not completed
   const todayTasks = allTasks.filter((t) => {
     if (t.completed) return false;
+    if (!t.dueDate) return false;
+    const due = new Date(t.dueDate);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return due <= today;
+  });
+
+  // Completed tasks due today or overdue
+  const todayCompletedTasks = allTasks.filter((t) => {
+    if (!t.completed) return false;
     if (!t.dueDate) return false;
     const due = new Date(t.dueDate);
     const today = new Date();
@@ -679,7 +951,7 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <section>
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Total Tasks"
             value={totalCount}
@@ -720,32 +992,29 @@ export default function DashboardPage() {
             clickable
             onClick={() => setActiveStatModal("overdue")}
           />
-          <StatCard
-            label="Day Streak"
-            value={currentStreak}
-            icon={Flame}
-            iconColor="bg-amber-500/15 text-amber-400"
-            ocid="dashboard.streak.open_modal_button"
-            delay={0.25}
-            clickable
+        </div>
+        {/* Streak pill under task stats */}
+        <div className="flex items-center gap-2 mt-3">
+          <button
             onClick={() => setActiveStatModal("streak")}
-          />
-          <StatCard
-            label="Habits Today"
-            value={`${habitsCompleted}/${habitsTotal}`}
-            icon={Repeat2}
-            iconColor="bg-teal-500/15 text-teal-400"
-            ocid="dashboard.habits.open_modal_button"
-            delay={0.3}
-            clickable
-            onClick={() => setActiveStatModal("habits")}
-          />
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 transition-colors cursor-pointer"
+            type="button"
+            data-ocid="dashboard.streak.open_modal_button"
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-xs font-semibold text-amber-400">
+              {currentStreak} day streak
+            </span>
+          </button>
+          <span className="text-xs text-muted-foreground">
+            Keep completing tasks daily!
+          </span>
         </div>
       </section>
 
       {/* Three-column widgets: To-Do, Journal, Goals */}
       <section>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Quick To-Do */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -998,6 +1267,85 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </motion.div>
+          {/* Habits Widget */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.44 }}
+            data-ocid="dashboard.habits.section"
+          >
+            <Card
+              className="border-border bg-card h-full cursor-pointer hover:border-teal-500/40 transition-colors"
+              onClick={() => setActiveStatModal("habits")}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 rounded-md bg-teal-500/15">
+                    <Repeat2 className="w-4 h-4 text-teal-400" />
+                  </div>
+                  <h2 className="font-display text-sm font-semibold text-foreground">
+                    Habits
+                  </h2>
+                  <span className="ml-auto text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                    {habitsCompleted}/{habitsTotal} done
+                  </span>
+                </div>
+                {habits.length === 0 ? (
+                  <div
+                    className="text-center py-6"
+                    data-ocid="dashboard.habits.empty_state"
+                  >
+                    <Repeat2 className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      No habits yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-52 overflow-y-auto">
+                    {habits.slice(0, 6).map((habit, i) => {
+                      const done = isCompletedToday(habit.id);
+                      const streak = getHabitStreak(habit.id);
+                      return (
+                        <div
+                          key={habit.id}
+                          className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2"
+                          data-ocid={`dashboard.habits.item.${i + 1}`}
+                        >
+                          <div
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{
+                              backgroundColor: habit.color ?? "#14b8a6",
+                            }}
+                          />
+                          <span
+                            className={`text-xs flex-1 truncate ${done ? "line-through text-muted-foreground" : "text-foreground"}`}
+                          >
+                            {habit.name}
+                          </span>
+                          {streak > 0 && (
+                            <span className="flex items-center gap-0.5 text-xs text-amber-400 flex-shrink-0">
+                              <Flame className="w-3 h-3" />
+                              {streak}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Mini Calendar + Goals Timeline */}
+      <section data-ocid="dashboard.calendar_timeline.section">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Mini Calendar */}
+          <MiniCalendar tasks={tasks ?? []} />
+          {/* Goals Timeline */}
+          <GoalsTimeline goals={goals} />
         </div>
       </section>
 
@@ -1136,6 +1484,40 @@ export default function DashboardPage() {
           )}
         </motion.div>
       </section>
+
+      {/* Completed Today */}
+      {todayCompletedTasks.length > 0 && (
+        <section>
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-lg font-semibold text-foreground">
+                Completed Today
+              </h2>
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                {todayCompletedTasks.length} task
+                {todayCompletedTasks.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="space-y-2 opacity-70">
+              {todayCompletedTasks.map((task, i) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  projects={projects}
+                  index={i}
+                  onToggle={handleToggle}
+                  onEdit={setEditTask}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          </motion.div>
+        </section>
+      )}
 
       {/* Add task dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>

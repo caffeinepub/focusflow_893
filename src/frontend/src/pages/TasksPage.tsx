@@ -33,9 +33,11 @@ import {
   useToggleTaskCompletion,
   useUpdateTask,
 } from "../hooks/useQueries";
+import { useTaskRecurrence } from "../hooks/useTaskRecurrence";
 import { useTaskStreak } from "../hooks/useTaskStreak";
 
 type FilterTab = "all" | "active" | "completed";
+type Recurrence = "none" | "daily" | "weekly";
 
 export default function TasksPage() {
   const { identity } = useInternetIdentity();
@@ -49,6 +51,8 @@ export default function TasksPage() {
   const toggleTask = useToggleTaskCompletion();
 
   const { recordCompletion, currentStreak } = useTaskStreak();
+  const { getRecurrence, setRecurrence, removeRecurrence } =
+    useTaskRecurrence();
 
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -88,9 +92,12 @@ export default function TasksPage() {
     dueDate: string | null;
     notes: string;
     projectId: string | null;
+    recurrence: Recurrence;
   }) => {
     try {
-      await createTask.mutateAsync({ id: crypto.randomUUID(), ...data });
+      const newId = crypto.randomUUID();
+      await createTask.mutateAsync({ id: newId, ...data });
+      setRecurrence(newId, data.recurrence);
       setAddOpen(false);
       toast.success("Task created");
     } catch {
@@ -105,10 +112,12 @@ export default function TasksPage() {
     dueDate: string | null;
     notes: string;
     projectId: string | null;
+    recurrence: Recurrence;
   }) => {
     if (!editTask) return;
     try {
       await updateTask.mutateAsync({ id: editTask.id, ...data });
+      setRecurrence(editTask.id, data.recurrence);
       setEditTask(null);
       toast.success("Task updated");
     } catch {
@@ -118,11 +127,31 @@ export default function TasksPage() {
 
   const handleToggle = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
+    const wasNotCompleted = task && !task.completed;
     try {
       await toggleTask.mutateAsync(id);
-      // If task was not completed before, record streak completion
-      if (task && !task.completed) {
+      if (wasNotCompleted) {
         recordCompletion();
+        const recur = getRecurrence(id);
+        if (recur !== "none" && task) {
+          // Calculate next due date
+          const base = task.dueDate ? new Date(task.dueDate) : new Date();
+          const offsetDays = recur === "daily" ? 1 : 7;
+          base.setDate(base.getDate() + offsetDays);
+          const nextDueDate = base.toISOString();
+          const newId = crypto.randomUUID();
+          await createTask.mutateAsync({
+            id: newId,
+            title: task.title,
+            desc: task.description,
+            priority: task.priority,
+            dueDate: nextDueDate,
+            notes: task.notes,
+            projectId: task.projectId ?? null,
+          });
+          setRecurrence(newId, recur);
+          toast.success("Task completed! Next occurrence scheduled.");
+        }
       }
     } catch {
       toast.error("Failed to update task");
@@ -132,6 +161,7 @@ export default function TasksPage() {
   const handleDelete = async (id: string) => {
     try {
       await deleteTask.mutateAsync(id);
+      removeRecurrence(id);
       toast.success("Task deleted");
     } catch {
       toast.error("Failed to delete task");
@@ -332,6 +362,7 @@ export default function TasksPage() {
                 task={task}
                 projects={projects}
                 index={i}
+                recurrence={getRecurrence(task.id)}
                 onToggle={handleToggle}
                 onEdit={setEditTask}
                 onDelete={handleDelete}
@@ -365,6 +396,7 @@ export default function TasksPage() {
           {editTask && (
             <TaskForm
               initialData={editTask}
+              initialRecurrence={getRecurrence(editTask.id)}
               projects={projects}
               onSubmit={handleUpdate}
               isPending={updateTask.isPending}
