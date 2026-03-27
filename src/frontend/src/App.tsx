@@ -33,22 +33,23 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useReminders } from "./hooks/useReminders";
 import { useTheme } from "./hooks/useTheme";
-import CalendarPage from "./pages/CalendarPage";
-import DashboardPage from "./pages/DashboardPage";
-import FocusPage from "./pages/FocusPage";
-import GoalsPage from "./pages/GoalsPage";
-import HabitsPage from "./pages/HabitsPage";
-import InsightsPage from "./pages/InsightsPage";
-import JournalPage from "./pages/JournalPage";
-import ProjectsPage from "./pages/ProjectsPage";
-import ReportsPage from "./pages/ReportsPage";
-import StudyTrackerPage from "./pages/StudyTrackerPage";
-import TasksPage from "./pages/TasksPage";
-import TodoPage from "./pages/TodoPage";
+
+const CalendarPage = lazy(() => import("./pages/CalendarPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const FocusPage = lazy(() => import("./pages/FocusPage"));
+const GoalsPage = lazy(() => import("./pages/GoalsPage"));
+const HabitsPage = lazy(() => import("./pages/HabitsPage"));
+const InsightsPage = lazy(() => import("./pages/InsightsPage"));
+const JournalPage = lazy(() => import("./pages/JournalPage"));
+const ProjectsPage = lazy(() => import("./pages/ProjectsPage"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage"));
+const StudyTrackerPage = lazy(() => import("./pages/StudyTrackerPage"));
+const TasksPage = lazy(() => import("./pages/TasksPage"));
+const TodoPage = lazy(() => import("./pages/TodoPage"));
 
 // ─── Navigation config ─────────────────────────────────────────────────────
 
@@ -347,7 +348,15 @@ function Layout() {
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="h-full"
           >
-            <Outlet />
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </motion.div>
         </main>
       </div>
