@@ -17,6 +17,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   BarChart3,
   BookOpen,
@@ -25,11 +27,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FileDown,
+  FileSpreadsheet,
+  FileText,
+  FileType,
   Flame,
   ListTodo,
   LogIn,
   Printer,
   RefreshCw,
+  Repeat2,
   SmilePlus,
   Sparkles,
   Target,
@@ -37,9 +44,11 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import * as XLSX from "xlsx";
 import { type FocusSession, useFocusSessions } from "../hooks/useFocusSessions";
+import { type Habit, useHabits } from "../hooks/useHabits";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   type Goal,
@@ -466,12 +475,20 @@ function PeriodView({
   projects,
   goals,
   isLoading,
+  todos,
+  habits,
+  getStreak,
+  isCompletedToday,
 }: {
   months: 1 | 3 | 6 | 12;
   tasks: Task[];
   projects: { id: string; name: string; color: string }[];
   goals: Goal[];
   isLoading: boolean;
+  todos: { id: string; title: string; completed: boolean; createdAt: number }[];
+  habits: Habit[];
+  getStreak: (id: string) => number;
+  isCompletedToday: (id: string) => boolean;
 }) {
   const periodStats = useMemo(
     () => computePeriodStats(tasks, months),
@@ -654,6 +671,17 @@ function PeriodView({
             </CardContent>
           </Card>
         </motion.div>
+      )}
+      {/* Extra Data: Projects, Todos, Habits */}
+      {!isLoading && (
+        <ExtraDataSection
+          tasks={tasks}
+          projects={projects}
+          todos={todos}
+          habits={habits}
+          getStreak={getStreak}
+          isCompletedToday={isCompletedToday}
+        />
       )}
     </div>
   );
@@ -1076,12 +1104,22 @@ function WeeklyView({
   journalEntries,
   goals,
   focusSessions,
+  projects,
+  todos,
+  habits,
+  getStreak,
+  isCompletedToday,
 }: {
   tasks: Task[];
   isLoading: boolean;
   journalEntries: JournalEntry[];
   goals: Goal[];
   focusSessions: FocusSession[];
+  projects: { id: string; name: string; color: string }[];
+  todos: { id: string; title: string; completed: boolean; createdAt: number }[];
+  habits: Habit[];
+  getStreak: (id: string) => number;
+  isCompletedToday: (id: string) => boolean;
 }) {
   const [weekStart, setWeekStart] = useState<Date>(() =>
     getWeekStart(new Date()),
@@ -1369,6 +1407,259 @@ function WeeklyView({
           </>
         </>
       )}
+      {/* Extra Data: Projects, Todos, Habits */}
+      {!isLoading && (
+        <ExtraDataSection
+          tasks={tasks}
+          projects={projects}
+          todos={todos}
+          habits={habits}
+          getStreak={getStreak}
+          isCompletedToday={isCompletedToday}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Extra Data Section ───────────────────────────────────────────────────────
+
+interface TodoItem {
+  id: string;
+  title: string;
+  completed: boolean;
+  createdAt: number;
+}
+
+function ExtraDataSection({
+  tasks,
+  projects,
+  todos,
+  habits,
+  getStreak,
+  isCompletedToday,
+}: {
+  tasks: Task[];
+  projects: { id: string; name: string; color: string }[];
+  todos: TodoItem[];
+  habits: Habit[];
+  getStreak: (id: string) => number;
+  isCompletedToday: (id: string) => boolean;
+}) {
+  const projectStats = projects.map((p) => {
+    const pt = tasks.filter((t) => t.projectId === p.id);
+    const c = pt.filter((t) => t.completed).length;
+    const rate = pt.length > 0 ? Math.round((c / pt.length) * 100) : 0;
+    return { ...p, total: pt.length, completed: c, rate };
+  });
+
+  const doneTodos = todos.filter((t) => t.completed).length;
+
+  return (
+    <div className="space-y-6 mt-6">
+      {/* Projects Overview */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        data-ocid="reports.projects_overview.card"
+      >
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <Target className="w-4 h-4 text-primary" />
+              Projects Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {projectStats.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-border rounded-xl"
+                data-ocid="reports.projects_overview.empty_state"
+              >
+                <Target className="w-6 h-6 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  No projects yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {projectStats.map((p, i) => (
+                  <div
+                    key={p.id}
+                    className="space-y-1.5"
+                    data-ocid={`reports.projects_overview.item.${i + 1}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: p.color }}
+                        />
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {p.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {p.completed}/{p.total} tasks
+                        </span>
+                        <Badge
+                          className={`text-[10px] px-1.5 py-0 border-none font-semibold ${p.rate >= 80 ? "bg-emerald-500/15 text-emerald-400" : p.rate >= 40 ? "bg-amber-500/15 text-amber-400" : "bg-muted text-muted-foreground"}`}
+                        >
+                          {p.rate}%
+                        </Badge>
+                      </div>
+                    </div>
+                    <Progress value={p.rate} className="h-1.5" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* To-Do Summary */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        data-ocid="reports.todos_summary.card"
+      >
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <ListTodo className="w-4 h-4 text-primary" />
+              To-Do Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <p className="text-2xl font-display font-bold text-foreground">
+                  {todos.length}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">Total</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-display font-bold text-emerald-400">
+                  {doneTodos}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">Done</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-display font-bold text-amber-400">
+                  {todos.length - doneTodos}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">Active</p>
+              </div>
+            </div>
+            {todos.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center py-4 text-center border border-dashed border-border rounded-xl"
+                data-ocid="reports.todos_summary.empty_state"
+              >
+                <ListTodo className="w-5 h-5 text-muted-foreground mb-1.5" />
+                <p className="text-sm text-muted-foreground">
+                  No to-do items yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {todos.map((t, i) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-muted/40 transition-colors"
+                    data-ocid={`reports.todos_summary.item.${i + 1}`}
+                  >
+                    <CheckCircle2
+                      className={`w-4 h-4 flex-shrink-0 ${t.completed ? "text-emerald-400" : "text-muted-foreground/40"}`}
+                    />
+                    <span
+                      className={`text-sm flex-1 truncate ${t.completed ? "line-through text-muted-foreground" : "text-foreground"}`}
+                    >
+                      {t.title}
+                    </span>
+                    <Badge
+                      className={`text-[10px] px-1.5 py-0 border-none flex-shrink-0 ${t.completed ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}
+                    >
+                      {t.completed ? "Done" : "Active"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Habits Overview */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        data-ocid="reports.habits_overview.card"
+      >
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <Repeat2 className="w-4 h-4 text-primary" />
+              Habits Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {habits.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-border rounded-xl"
+                data-ocid="reports.habits_overview.empty_state"
+              >
+                <Repeat2 className="w-6 h-6 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  No habits tracked yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {habits.map((h, i) => (
+                  <div
+                    key={h.id}
+                    className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-muted/40 transition-colors"
+                    data-ocid={`reports.habits_overview.item.${i + 1}`}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: h.color }}
+                    />
+                    <span className="text-sm font-medium text-foreground flex-1 truncate">
+                      {h.name}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 flex-shrink-0 capitalize"
+                    >
+                      {h.frequency}
+                    </Badge>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Flame className="w-3.5 h-3.5 text-orange-400" />
+                      <span className="text-xs font-semibold text-foreground tabular-nums">
+                        {getStreak(h.id)}
+                      </span>
+                    </div>
+                    {isCompletedToday(h.id) ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    ) : (
+                      <span className="w-4 h-4 flex items-center justify-center text-muted-foreground/40 flex-shrink-0 text-sm">
+                        —
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }
@@ -1553,11 +1844,293 @@ export default function ReportsPage() {
   const { data: goals = [], isLoading: loadingGoals } = useAllGoals();
   const { data: journalEntries = [] } = useAllJournalEntries();
   const { sessions: focusSessions } = useFocusSessions();
+  const { habits, getCurrentStreak: getStreak, isCompletedToday } = useHabits();
+  const [todos] = useState<
+    { id: string; title: string; completed: boolean; createdAt: number }[]
+  >(() => {
+    try {
+      const raw = localStorage.getItem("focusflow_todos");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [periodTab, setPeriodTab] = useState<
     "weekly" | "1mo" | "3mo" | "6mo" | "12mo"
   >("weekly");
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        exportMenuRef.current &&
+        !exportMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowExportMenu(false);
+      }
+    };
+    if (showExportMenu)
+      document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showExportMenu]);
+
+  const exportToExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const taskRows = tasks.map((t) => ({
+      Title: t.title,
+      Status: t.completed ? "Completed" : "Pending",
+      Priority: t.priority || "normal",
+      DueDate: t.dueDate
+        ? new Date(Number(t.dueDate) / 1_000_000).toLocaleDateString()
+        : "",
+    }));
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(taskRows),
+      "Tasks",
+    );
+    const goalRows = goals.map((g) => ({
+      Title: g.title,
+      Status: g.status,
+      Progress: `${g.progress || 0}%`,
+      TargetDate: g.targetDate
+        ? new Date(Number(g.targetDate) / 1_000_000).toLocaleDateString()
+        : "",
+    }));
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(goalRows),
+      "Goals",
+    );
+    const journalRows = journalEntries.map((j) => ({
+      Date: new Date(Number(j.createdAt) / 1_000_000).toLocaleDateString(),
+      Mood: j.mood,
+      Tags: Array.isArray(j.tags) ? j.tags.join(", ") : "",
+      Content: j.content?.slice(0, 200) || "",
+    }));
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(journalRows),
+      "Journal",
+    );
+    const sessionRows = focusSessions.map((s) => ({
+      Task: s.taskTitle || "",
+      DurationMins: Math.round((s.durationSeconds || 0) / 60),
+      Date: new Date(Number(s.startedAt) / 1_000_000).toLocaleDateString(),
+    }));
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(sessionRows),
+      "Focus Sessions",
+    );
+    // Projects sheet
+    const projectRows = projects.map((p) => {
+      const projectTasks = tasks.filter((t) => t.projectId === p.id);
+      const completedCount = projectTasks.filter((t) => t.completed).length;
+      const rate =
+        projectTasks.length > 0
+          ? Math.round((completedCount / projectTasks.length) * 100)
+          : 0;
+      return {
+        Name: p.name,
+        "Total Tasks": projectTasks.length,
+        Completed: completedCount,
+        "Completion %": `${rate}%`,
+      };
+    });
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(projectRows),
+      "Projects",
+    );
+    // To-Do List sheet
+    const todoRows = todos.map((t) => ({
+      Title: t.title,
+      Status: t.completed ? "Done" : "Active",
+    }));
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(todoRows),
+      "To-Do List",
+    );
+    // Habits sheet
+    const habitRows = habits.map((h) => ({
+      Name: h.name,
+      Frequency: h.frequency,
+      "Current Streak": getStreak(h.id),
+      "Done Today": isCompletedToday(h.id) ? "Yes" : "No",
+    }));
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(habitRows),
+      "Habits",
+    );
+    XLSX.writeFile(
+      wb,
+      `FocusFlow_Report_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
+    setShowExportMenu(false);
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("FocusFlow Report", 14, 20);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(
+      `Generated: ${new Date().toLocaleDateString()} | Period: ${periodTab}`,
+      14,
+      28,
+    );
+    const completed = tasks.filter((t) => t.completed).length;
+    const pending = tasks.filter((t) => !t.completed).length;
+    doc.setFontSize(13);
+    doc.setTextColor(0);
+    doc.text("Task Summary", 14, 40);
+    autoTable(doc, {
+      startY: 44,
+      head: [["Metric", "Value"]],
+      body: [
+        ["Total Tasks", String(tasks.length)],
+        ["Completed", String(completed)],
+        ["Pending", String(pending)],
+        ["Total Goals", String(goals.length)],
+        ["Journal Entries", String(journalEntries.length)],
+        ["Focus Sessions", String(focusSessions.length)],
+      ],
+    });
+    const finalY1 = (doc as any).lastAutoTable?.finalY || 100;
+    doc.text("Tasks", 14, finalY1 + 10);
+    autoTable(doc, {
+      startY: finalY1 + 14,
+      head: [["Title", "Status", "Priority", "Due Date"]],
+      body: tasks.map((t) => [
+        t.title,
+        t.completed ? "Completed" : "Pending",
+        t.priority || "normal",
+        t.dueDate
+          ? new Date(Number(t.dueDate) / 1_000_000).toLocaleDateString()
+          : "-",
+      ]),
+    });
+    doc.addPage();
+    doc.text("Goals", 14, 20);
+    autoTable(doc, {
+      startY: 24,
+      head: [["Title", "Status", "Progress"]],
+      body: goals.map((g) => [g.title, g.status, `${g.progress || 0}%`]),
+    });
+    const finalY2 = (doc as any).lastAutoTable?.finalY || 140;
+    const remaining2 = 297 - finalY2;
+    if (remaining2 < 40) doc.addPage();
+    const projectsY = remaining2 < 40 ? 20 : finalY2 + 10;
+    doc.text("Projects", 14, projectsY);
+    autoTable(doc, {
+      startY: projectsY + 4,
+      head: [["Name", "Total Tasks", "Completed", "Completion %"]],
+      body: projects.map((p) => {
+        const pt = tasks.filter((t) => t.projectId === p.id);
+        const c = pt.filter((t) => t.completed).length;
+        return [
+          p.name,
+          String(pt.length),
+          String(c),
+          pt.length > 0 ? `${Math.round((c / pt.length) * 100)}%` : "0%",
+        ];
+      }),
+    });
+    const finalY3 = (doc as any).lastAutoTable?.finalY || 160;
+    const remaining3 = 297 - finalY3;
+    if (remaining3 < 40) doc.addPage();
+    const todosY = remaining3 < 40 ? 20 : finalY3 + 10;
+    doc.text("To-Do List", 14, todosY);
+    autoTable(doc, {
+      startY: todosY + 4,
+      head: [["Title", "Status"]],
+      body: todos.map((t) => [t.title, t.completed ? "Done" : "Active"]),
+    });
+    doc.addPage();
+    doc.text("Habits", 14, 20);
+    autoTable(doc, {
+      startY: 24,
+      head: [["Name", "Frequency", "Current Streak", "Done Today"]],
+      body: habits.map((h) => [
+        h.name,
+        h.frequency,
+        String(getStreak(h.id)),
+        isCompletedToday(h.id) ? "Yes" : "No",
+      ]),
+    });
+    doc.save(`FocusFlow_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
+    setShowExportMenu(false);
+  };
+
+  const exportToWord = () => {
+    const completed = tasks.filter((t) => t.completed).length;
+    const pending = tasks.filter((t) => !t.completed).length;
+    const html = `<html><head><meta charset="utf-8"><style>
+      body { font-family: Arial, sans-serif; margin: 40px; }
+      h1 { color: #1a1a1a; } h2 { color: #333; margin-top: 24px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+      th { background: #f0f0f0; padding: 6px 10px; text-align: left; border: 1px solid #ccc; }
+      td { padding: 5px 10px; border: 1px solid #ddd; }
+    </style></head><body>
+    <h1>FocusFlow Report</h1>
+    <p>Generated: ${new Date().toLocaleDateString()} | Period: ${periodTab}</p>
+    <h2>Summary</h2>
+    <table><tr><th>Metric</th><th>Value</th></tr>
+      <tr><td>Total Tasks</td><td>${tasks.length}</td></tr>
+      <tr><td>Completed</td><td>${completed}</td></tr>
+      <tr><td>Pending</td><td>${pending}</td></tr>
+      <tr><td>Total Goals</td><td>${goals.length}</td></tr>
+      <tr><td>Journal Entries</td><td>${journalEntries.length}</td></tr>
+      <tr><td>Focus Sessions</td><td>${focusSessions.length}</td></tr>
+    </table>
+    <h2>Tasks</h2>
+    <table><tr><th>Title</th><th>Status</th><th>Priority</th><th>Due Date</th></tr>
+      ${tasks.map((t) => `<tr><td>${t.title}</td><td>${t.completed ? "Completed" : "Pending"}</td><td>${t.priority || "normal"}</td><td>${t.dueDate ? new Date(Number(t.dueDate) / 1_000_000).toLocaleDateString() : "-"}</td></tr>`).join("")}
+    </table>
+    <h2>Goals</h2>
+    <table><tr><th>Title</th><th>Status</th><th>Progress</th></tr>
+      ${goals.map((g) => `<tr><td>${g.title}</td><td>${g.status}</td><td>${g.progress || 0}%</td></tr>`).join("")}
+    </table>
+    <h2>Journal Entries</h2>
+    <table><tr><th>Date</th><th>Mood</th><th>Tags</th></tr>
+      ${journalEntries.map((j) => `<tr><td>${new Date(Number(j.createdAt) / 1_000_000).toLocaleDateString()}</td><td>${j.mood}</td><td>${Array.isArray(j.tags) ? j.tags.join(", ") : ""}</td></tr>`).join("")}
+    </table>
+    <h2>Projects</h2>
+    <table><tr><th>Name</th><th>Total Tasks</th><th>Completed</th><th>Completion %</th></tr>
+      ${projects
+        .map((p) => {
+          const pt = tasks.filter((t) => t.projectId === p.id);
+          const c = pt.filter((t) => t.completed).length;
+          const rate = pt.length > 0 ? Math.round((c / pt.length) * 100) : 0;
+          return `<tr><td>${p.name}</td><td>${pt.length}</td><td>${c}</td><td>${rate}%</td></tr>`;
+        })
+        .join("")}
+    </table>
+    <h2>To-Do List</h2>
+    <table><tr><th>Title</th><th>Status</th></tr>
+      ${todos.map((t) => `<tr><td>${t.title}</td><td>${t.completed ? "Done" : "Active"}</td></tr>`).join("")}
+    </table>
+    <h2>Habits</h2>
+    <table><tr><th>Name</th><th>Frequency</th><th>Current Streak</th><th>Done Today</th></tr>
+      ${habits.map((h) => `<tr><td>${h.name}</td><td>${h.frequency}</td><td>${getStreak(h.id)}</td><td>${isCompletedToday(h.id) ? "Yes" : "No"}</td></tr>`).join("")}
+    </table>
+    </body></html>`;
+    const blob = new Blob([html], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `FocusFlow_Report_${new Date().toISOString().slice(0, 10)}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+  };
 
   if (!isAuthenticated) {
     return (
@@ -1608,15 +2181,48 @@ export default function ReportsPage() {
             Your productivity summary across time periods
           </p>
         </div>
-        <button
-          type="button"
-          data-ocid="reports.export_pdf.button"
-          onClick={() => window.print()}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-colors print:hidden"
-        >
-          <Printer className="w-4 h-4" />
-          Export PDF
-        </button>
+        <div className="relative print:hidden" ref={exportMenuRef}>
+          <button
+            type="button"
+            data-ocid="reports.export.button"
+            onClick={() => setShowExportMenu((v) => !v)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            <FileDown className="w-4 h-4" />
+            Export
+          </button>
+          {showExportMenu && (
+            <div className="absolute right-0 mt-1 w-44 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+              <button
+                type="button"
+                data-ocid="reports.export_pdf.button"
+                onClick={exportToPDF}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+              >
+                <FileText className="w-4 h-4 text-red-500" />
+                Export PDF
+              </button>
+              <button
+                type="button"
+                data-ocid="reports.export_word.button"
+                onClick={exportToWord}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+              >
+                <FileType className="w-4 h-4 text-blue-500" />
+                Export Word
+              </button>
+              <button
+                type="button"
+                data-ocid="reports.export_excel.button"
+                onClick={exportToExcel}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-green-500" />
+                Export Excel
+              </button>
+            </div>
+          )}
+        </div>
       </motion.div>
 
       {/* Period tabs */}
@@ -1667,6 +2273,11 @@ export default function ReportsPage() {
           journalEntries={journalEntries}
           goals={goals}
           focusSessions={focusSessions}
+          projects={projects}
+          todos={todos}
+          habits={habits}
+          getStreak={getStreak}
+          isCompletedToday={isCompletedToday}
         />
       )}
       {periodTab === "3mo" && (
@@ -1676,6 +2287,10 @@ export default function ReportsPage() {
           projects={projects}
           goals={goals}
           isLoading={loadingTasks || loadingGoals}
+          todos={todos}
+          habits={habits}
+          getStreak={getStreak}
+          isCompletedToday={isCompletedToday}
         />
       )}
       {periodTab === "6mo" && (
@@ -1685,6 +2300,10 @@ export default function ReportsPage() {
           projects={projects}
           goals={goals}
           isLoading={loadingTasks || loadingGoals}
+          todos={todos}
+          habits={habits}
+          getStreak={getStreak}
+          isCompletedToday={isCompletedToday}
         />
       )}
       {periodTab === "1mo" && (
@@ -1694,6 +2313,10 @@ export default function ReportsPage() {
           projects={projects}
           goals={goals}
           isLoading={loadingTasks || loadingGoals}
+          todos={todos}
+          habits={habits}
+          getStreak={getStreak}
+          isCompletedToday={isCompletedToday}
         />
       )}
       {periodTab === "12mo" && (
@@ -1703,6 +2326,10 @@ export default function ReportsPage() {
           projects={projects}
           goals={goals}
           isLoading={loadingTasks || loadingGoals}
+          todos={todos}
+          habits={habits}
+          getStreak={getStreak}
+          isCompletedToday={isCompletedToday}
         />
       )}
     </div>
