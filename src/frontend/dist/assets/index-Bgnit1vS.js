@@ -1,0 +1,25 @@
+import { r as reactExports, w as React } from "./index-ByEywl6s.js";
+import { u as useLayoutEffect2 } from "./index-CrHuaOeQ.js";
+var useReactId = React[" useId ".trim().toString()] || (() => void 0);
+var count = 0;
+function useId(deterministicId) {
+  const [id, setId] = reactExports.useState(useReactId());
+  useLayoutEffect2(() => {
+    setId((reactId) => reactId ?? String(count++));
+  }, [deterministicId]);
+  return deterministicId || (id ? `radix-${id}` : "");
+}
+function useCallbackRef(callback) {
+  const callbackRef = reactExports.useRef(callback);
+  reactExports.useEffect(() => {
+    callbackRef.current = callback;
+  });
+  return reactExports.useMemo(() => (...args) => {
+    var _a;
+    return (_a = callbackRef.current) == null ? void 0 : _a.call(callbackRef, ...args);
+  }, []);
+}
+export {
+  useId as a,
+  useCallbackRef as u
+};
